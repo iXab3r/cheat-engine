@@ -1,15 +1,16 @@
 object frmDBVMLoadManual: TfrmDBVMLoadManual
-  Left = 682
-  Height = 92
-  Top = 148
-  Width = 268
+  Left = 644
+  Height = 115
+  Top = 282
+  Width = 335
   HorzScrollBar.Page = 1
   VertScrollBar.Page = 1
   AutoSize = True
   BorderIcons = [biSystemMenu]
   Caption = 'Manual load DBVM'
+  DesignTimePPI = 120
   OnClose = FormClose
   OnCreate = FormCreate
   Position = poScreenCenter
-  LCLVersion = '1.6.0.4'
+  LCLVersion = '2.2.2.0'
 end

@@ -688,6 +688,8 @@ type
     procedure AddressKeyPress(Sender: TObject; var Key: char);
     procedure FoundListDblClick(Sender: TObject);
     procedure Browsethismemoryarrea1Click(Sender: TObject);
+    procedure Splitter1CanOffset(Sender: TObject; var NewOffset: Integer;
+      var Accept: Boolean);
     procedure tLuaGCActiveTimer(Sender: TObject);
     procedure tLuaGCPassiveTimer(Sender: TObject);
     procedure UpdateTimerTimer(Sender: TObject);
@@ -6489,6 +6491,12 @@ begin
     MemoryBrowser.memoryaddress := foundlist.GetAddress(foundlist3.ItemIndex, b, s);
     memorybrowser.Show;
   end;
+end;
+
+procedure TMainForm.Splitter1CanOffset(Sender: TObject; var NewOffset: Integer;
+  var Accept: Boolean);
+begin
+
 end;
 
 procedure TMainForm.tLuaGCActiveTimer(Sender: TObject);
