@@ -37,6 +37,10 @@ void UnloadDriver(PDRIVER_OBJECT DriverObject);
 NTSTATUS DispatchCreate(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp);
 NTSTATUS DispatchClose(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp);
 
+enum
+{
+	DEFAULT_BUFFER_SIZE = 100
+};
 
 #ifndef AMD64
 //no api hooks for x64
@@ -85,7 +89,7 @@ typedef NTSTATUS(*PSRLINR)(__in PLOAD_IMAGE_NOTIFY_ROUTINE NotifyRoutine);
 PSRLINR PsRemoveLoadImageNotifyRoutine2;
 
 UNICODE_STRING  uszDeviceString;
-PVOID BufDeviceString=NULL;
+PVOID BufDeviceString=NULL, BufDeviceStringFormat=NULL;
 
 
 
@@ -144,6 +148,31 @@ VOID TestDPC(IN struct _KDPC *Dpc, IN PVOID  DeferredContext, IN PVOID  SystemAr
 }
 #endif
 
+BOOLEAN ExtractServiceNameFromRegistryPath(
+	_In_ PUNICODE_STRING RegistryPath,
+	_Out_ UNICODE_STRING* ServiceName
+)
+{
+	if (!RegistryPath || !RegistryPath->Buffer || RegistryPath->Length == 0)
+		return FALSE;
+
+	// Find the last backslash
+	for (USHORT i = RegistryPath->Length / sizeof(WCHAR); i > 0; --i)
+	{
+		if (RegistryPath->Buffer[i - 1] == L'\\')
+		{
+			USHORT start = i;
+			USHORT len = (RegistryPath->Length / sizeof(WCHAR)) - start;
+
+			ServiceName->Buffer = &RegistryPath->Buffer[start];
+			ServiceName->Length = len * sizeof(WCHAR);
+			ServiceName->MaximumLength = ServiceName->Length;
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
 
 NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 	IN PUNICODE_STRING RegistryPath)
@@ -167,7 +196,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 
 
 	NTSTATUS        ntStatus;
-	PVOID           BufDriverString = NULL, BufProcessEventString = NULL, BufThreadEventString = NULL;
+	PVOID           BufDriverString = NULL, BufDriverStringFormat = NULL, BufProcessEventString = NULL, BufThreadEventString = NULL;
 	UNICODE_STRING  uszDriverString;
 
 	UNICODE_STRING  uszProcessEventString;
@@ -177,10 +206,9 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 	OBJECT_ATTRIBUTES oa;
 
 	UNICODE_STRING temp;
-	char wbuf[100];
+	char wbuf[DEFAULT_BUFFER_SIZE];
 	WORD this_cs, this_ss, this_ds, this_es, this_fs, this_gs;
 	ULONG cr4reg;
-
 
 
 	criticalSection csTest;
@@ -192,7 +220,6 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 	KernelWritesIgnoreWP = 0;
 
 
-
 	this_cs = getCS();
 	this_ss = getSS();
 	this_ds = getDS();
@@ -202,12 +229,23 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 
 	temp.Buffer = (PWCH)wbuf;
 	temp.Length = 0;
-	temp.MaximumLength = 100;
-
-	//DbgPrint("Loading driver\n");
+	temp.MaximumLength = DEFAULT_BUFFER_SIZE;
+	
+	DbgPrint("Loading driver\n");
 	if (RegistryPath)
 	{
-		//DbgPrint("Registry path = %S\n", RegistryPath->Buffer);
+		DbgPrint("Registry path = %S\n", RegistryPath->Buffer);
+
+		UNICODE_STRING serviceName;
+		if (ExtractServiceNameFromRegistryPath(RegistryPath, &serviceName))
+		{
+			DbgPrint("Driver loaded for service @ %wZ, service name: %wZ\n", RegistryPath, &serviceName);
+		}
+		else
+		{
+			DbgPrint("Failed to extract service name from RegistryPath: %wZ\n", RegistryPath);
+			return STATUS_UNSUCCESSFUL;
+		}
 
 		InitializeObjectAttributes(&oa, RegistryPath, OBJ_KERNEL_HANDLE, NULL, NULL);
 		ntStatus = ZwOpenKey(&reg, KEY_QUERY_VALUE, &oa);
@@ -217,12 +255,14 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 			PKEY_VALUE_PARTIAL_INFORMATION bufA, bufB, bufC, bufD;
 			ULONG ActualSize;
 
-			//DbgPrint("Opened the key\n");
+			DbgPrint("Opened the key\n");
 
-			BufDriverString = ExAllocatePool(PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100);
-			BufDeviceString = ExAllocatePool(PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100);
-			BufProcessEventString = ExAllocatePool(PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100);
-			BufThreadEventString = ExAllocatePool(PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100);
+			BufDriverString = ExAllocatePool(PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + DEFAULT_BUFFER_SIZE);
+			BufDriverStringFormat = ExAllocatePool(PagedPool, DEFAULT_BUFFER_SIZE);
+			BufDeviceString = ExAllocatePool(PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + DEFAULT_BUFFER_SIZE);
+			BufDeviceStringFormat = ExAllocatePool(PagedPool, DEFAULT_BUFFER_SIZE);
+			BufProcessEventString = ExAllocatePool(PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + DEFAULT_BUFFER_SIZE);
+			BufThreadEventString = ExAllocatePool(PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + DEFAULT_BUFFER_SIZE);
 
 			bufA = BufDriverString;
 			bufB = BufDeviceString;
@@ -235,26 +275,78 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 			RtlInitUnicodeString(&D, L"D");
 
 			if (ntStatus == STATUS_SUCCESS)
-				ntStatus = ZwQueryValueKey(reg, &A, KeyValuePartialInformation, bufA, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100, &ActualSize);
-			if (ntStatus == STATUS_SUCCESS)
-				ntStatus = ZwQueryValueKey(reg, &B, KeyValuePartialInformation, bufB, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100, &ActualSize);
-			if (ntStatus == STATUS_SUCCESS)
-				ntStatus = ZwQueryValueKey(reg, &C, KeyValuePartialInformation, bufC, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100, &ActualSize);
-			if (ntStatus == STATUS_SUCCESS)
-				ntStatus = ZwQueryValueKey(reg, &D, KeyValuePartialInformation, bufD, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100, &ActualSize);
+			{
+				if (NT_SUCCESS(ZwQueryValueKey(reg, &A, KeyValuePartialInformation, bufA, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100, &ActualSize)))
+				{
+					RtlInitUnicodeString(&uszDriverString, (PCWSTR)bufA->Data);
+				}
+				else
+				{
+					ntStatus = RtlStringCbPrintfW(
+						BufDriverStringFormat,
+						DEFAULT_BUFFER_SIZE,
+						L"\\Device\\%wZ",
+						&serviceName
+					);
+					if (NT_SUCCESS(ntStatus))
+					{
+						RtlInitUnicodeString(&uszDriverString, BufDriverStringFormat);
+					}
+				}
+			}
 
 			if (ntStatus == STATUS_SUCCESS)
 			{
-				//DbgPrint("Read ok\n");
-				RtlInitUnicodeString(&uszDriverString, (PCWSTR)bufA->Data);
-				RtlInitUnicodeString(&uszDeviceString, (PCWSTR)bufB->Data);
-				RtlInitUnicodeString(&uszProcessEventString, (PCWSTR)bufC->Data);
-				RtlInitUnicodeString(&uszThreadEventString, (PCWSTR)bufD->Data);
+				if (NT_SUCCESS(ZwQueryValueKey(reg, &B, KeyValuePartialInformation, bufB, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100, &ActualSize)))
+				{
+					RtlInitUnicodeString(&uszDeviceString, (PCWSTR)bufB->Data);
+				}
+				else
+				{
+					ntStatus = RtlStringCbPrintfW(
+						BufDeviceStringFormat,
+						DEFAULT_BUFFER_SIZE,
+						L"\\DosDevices\\%wZ",
+						&serviceName
+					);
+					if (NT_SUCCESS(ntStatus))
+					{
+						RtlInitUnicodeString(&uszDeviceString, BufDeviceStringFormat);
+					}
+				}
+			}
+			
+			if (ntStatus == STATUS_SUCCESS)
+			{
+				if (NT_SUCCESS(ZwQueryValueKey(reg, &C, KeyValuePartialInformation, bufC, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100, &ActualSize)))
+				{
+					RtlInitUnicodeString(&uszProcessEventString, (PCWSTR)bufC->Data);
+				}
+				else
+				{
+					RtlInitUnicodeString(&uszProcessEventString, (PCWSTR)L"\\BaseNamedObjects\\DBKProcList60");
+				}
+			}
+			if (ntStatus == STATUS_SUCCESS)
+			{
+				if (NT_SUCCESS(ZwQueryValueKey(reg, &D, KeyValuePartialInformation, bufD, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 100, &ActualSize)))
+				{
+					RtlInitUnicodeString(&uszThreadEventString, (PCWSTR)bufD->Data);
+				}
+				else
+				{
+					RtlInitUnicodeString(&uszThreadEventString, (PCWSTR)L"\\BaseNamedObjects\\DBKThreadList60");
+				}
+			}
+			
+			DbgPrint("DriverString=%S\n", uszDriverString.Buffer);
+			DbgPrint("DeviceString=%S\n", uszDeviceString.Buffer);
+			DbgPrint("ProcessEventString=%S\n", uszProcessEventString.Buffer);
+			DbgPrint("ThreadEventString=%S\n", uszThreadEventString.Buffer);
 
-				//DbgPrint("DriverString=%S\n", uszDriverString.Buffer);
-				//DbgPrint("DeviceString=%S\n", uszDeviceString.Buffer);
-				//DbgPrint("ProcessEventString=%S\n", uszProcessEventString.Buffer);
-				//DbgPrint("ThreadEventString=%S\n", uszThreadEventString.Buffer);
+			if (ntStatus == STATUS_SUCCESS)
+			{
+				DbgPrint("Read settings successfully\n");
 			}
 			else
 			{
@@ -263,25 +355,25 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 				ExFreePool(bufC);
 				ExFreePool(bufD);
 
-				//DbgPrint("Failed reading the value\n");
+				DbgPrint("Failed reading the value\n");
 				ZwClose(reg);
-				return STATUS_UNSUCCESSFUL;;
+				return STATUS_UNSUCCESSFUL;
 			}
 
 		}
 		else
 		{
-			//DbgPrint("Failed opening the key\n");
-			return STATUS_UNSUCCESSFUL;;
+			DbgPrint("Failed opening the key\n");
+			return STATUS_UNSUCCESSFUL;
 		}
 	}
 	else
+	{
 		loadedbydbvm = TRUE;
+	}
+
 
 	ntStatus = STATUS_SUCCESS;
-
-
-
 
 
 	if (!loadedbydbvm)
@@ -304,7 +396,9 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 		{
 			//DbgPrint("IoCreateDevice failed\n");
 			ExFreePool(BufDriverString);
+			ExFreePool(BufDriverStringFormat);
 			ExFreePool(BufDeviceString);
+			ExFreePool(BufDeviceStringFormat);
 			ExFreePool(BufProcessEventString);
 			ExFreePool(BufThreadEventString);
 
@@ -318,16 +412,19 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 		// Point uszDeviceString at the device name
 
 		// Create symbolic link to the user-visible name
+		DbgPrint("Creating symbolic link, deviceString: %S, driverString: %S\n", uszDeviceString.Buffer, uszDriverString.Buffer);
 		ntStatus = IoCreateSymbolicLink(&uszDeviceString, &uszDriverString);
 
 		if (ntStatus != STATUS_SUCCESS)
 		{
-			//DbgPrint("IoCreateSymbolicLink failed: %x\n", ntStatus);
+			DbgPrint("IoCreateSymbolicLink failed: %x\n", ntStatus);
 			// Delete device object if not successful
 			IoDeleteDevice(pDeviceObject);
 
 			ExFreePool(BufDriverString);
+			ExFreePool(BufDriverStringFormat);
 			ExFreePool(BufDeviceString);
+			ExFreePool(BufDeviceStringFormat);
 			ExFreePool(BufProcessEventString);
 			ExFreePool(BufThreadEventString);
 
@@ -344,7 +441,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 	//when loaded by dbvm driver object is 'valid' so store the function addresses
 
 
-	//DbgPrint("DriverObject=%p\n", DriverObject);
+	DbgPrint("DriverObject=%p\n", DriverObject);
 
 	// Load structure to point to IRP handlers...
 	DriverObject->DriverUnload = UnloadDriver;
@@ -421,6 +518,12 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 	{
 		ExFreePool(BufDriverString);
 		BufDriverString = NULL;
+	}
+
+	if (BufDriverStringFormat)
+	{
+		ExFreePool(BufDriverStringFormat);
+		BufDriverStringFormat = NULL;
 	}
 
 	if (BufProcessEventString)
