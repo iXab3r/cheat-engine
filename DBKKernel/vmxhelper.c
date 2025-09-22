@@ -74,7 +74,7 @@ This will either raise a unhandled opcode exception, or return the used dbvm ver
 		unsigned int command;
 	} vmcallinfo;
 
-	DbgPrint("vmx_getversion()\n");
+	LogInfo("vmx_getversion()\n");
 
 	vmcallinfo.structsize=sizeof(vmcallinfo);
 	vmcallinfo.level2pass=vmx_password2;
@@ -146,7 +146,7 @@ unsigned int vmx_redirect_interrupt1(VMXInterruptRedirectType redirecttype, unsi
 	} vmcallinfo;
 	#pragma pack()
 
-	DbgPrint("vmx_redirect_interrupt1: redirecttype=%d int1cs=%x int1eip=%llx sizeof(vmcallinfo)=%x\n", redirecttype, int1cs, int1eip, sizeof(vmcallinfo));
+	LogInfo("vmx_redirect_interrupt1: redirecttype=%d int1cs=%x int1eip=%llx sizeof(vmcallinfo)=%x\n", redirecttype, int1cs, int1eip, sizeof(vmcallinfo));
 	vmcallinfo.structsize=sizeof(vmcallinfo);
 	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_REDIRECTINT1;
@@ -173,7 +173,7 @@ unsigned int vmx_redirect_interrupt3(VMXInterruptRedirectType redirecttype, unsi
 	} vmcallinfo;
 	#pragma pack()
 
-	DbgPrint("vmx_redirect_interrupt3: int3cs=%x int3eip=%x sizeof(vmcallinfo)=%x\n", int3cs, int3eip, sizeof(vmcallinfo));
+	LogInfo("vmx_redirect_interrupt3: int3cs=%x int3eip=%x sizeof(vmcallinfo)=%x\n", int3cs, int3eip, sizeof(vmcallinfo));
 	vmcallinfo.structsize=sizeof(vmcallinfo);
 	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_REDIRECTINT3;
@@ -201,7 +201,7 @@ unsigned int vmx_redirect_interrupt14(VMXInterruptRedirectType redirecttype, uns
 	} vmcallinfo;
 	#pragma pack()
 
-	DbgPrint("vmx_redirect_interrupt14: int14cs=%x int14eip=%x sizeof(vmcallinfo)=%x\n", int14cs, int14eip, sizeof(vmcallinfo));
+	LogInfo("vmx_redirect_interrupt14: int14cs=%x int14eip=%x sizeof(vmcallinfo)=%x\n", int14cs, int14eip, sizeof(vmcallinfo));
 	vmcallinfo.structsize=sizeof(vmcallinfo);
 	vmcallinfo.level2pass=vmx_password2;
 	vmcallinfo.command=VMCALL_REDIRECTINT14;
@@ -253,7 +253,7 @@ unsigned int vmx_exit_cr3_callback(unsigned int newcr3)
 	} vmcallinfo;
 	#pragma pack()
 
-	//DbgPrint("vmx_exit_cr3_callback(%x)\n",newcr3);
+	//LogInfo("vmx_exit_cr3_callback(%x)\n",newcr3);
 
 	vmcallinfo.structsize=sizeof(vmcallinfo);
 	vmcallinfo.level2pass=vmx_password2;
@@ -582,7 +582,7 @@ unsigned int vmx_ultimap(UINT_PTR cr3towatch, UINT64 debugctl_value, void *store
 	vmcallinfo.debugctl=(UINT64)debugctl_value;
 	vmcallinfo.storeaddress=(UINT64)(UINT_PTR)storeaddress;
 
-	DbgPrint("vmx_ultimap(%I64x, %I64x, %I64x)\n", (UINT64)vmcallinfo.cr3, (UINT64)vmcallinfo.debugctl, vmcallinfo.storeaddress);
+	LogInfo("vmx_ultimap(%I64x, %I64x, %I64x)\n", (UINT64)vmcallinfo.cr3, (UINT64)vmcallinfo.debugctl, vmcallinfo.storeaddress);
 	
 
 	return (unsigned int)dovmcall(&vmcallinfo);;
@@ -712,21 +712,21 @@ unsigned int vmx_add_memory(UINT64 *list, int count)
 	PAddMemoryInfoCall vmcallinfo=ExAllocatePool(NonPagedPool, sizeof(AddMemoryInfoCall) + count * sizeof(UINT64));
 
 
-	DbgPrint("vmx_add_memory(%p,%d)\n", list, count);
-	DbgPrint("vmx_add_memory(vmx_password1=%x,vmx_password2=%x)\n", vmx_password1, vmx_password2);
+	LogInfo("vmx_add_memory(%p,%d)\n", list, count);
+	LogInfo("vmx_add_memory(vmx_password1=%x,vmx_password2=%x)\n", vmx_password1, vmx_password2);
 
-	DbgPrint("structsize at offset %d\n", (UINT64)(&vmcallinfo->structsize) - (UINT64)vmcallinfo);
-	DbgPrint("level2pass at offset %d\n", (UINT64)(&vmcallinfo->level2pass) - (UINT64)vmcallinfo);
-	DbgPrint("command at offset %d\n", (UINT64)(&vmcallinfo->command) - (UINT64)vmcallinfo);
-	DbgPrint("PhysicalPages[0] at offset %d\n", (UINT64)(&vmcallinfo->PhysicalPages[0]) - (UINT64)vmcallinfo);
-	DbgPrint("PhysicalPages[1] at offset %d\n", (UINT64)(&vmcallinfo->PhysicalPages[1]) - (UINT64)vmcallinfo);
+	LogInfo("structsize at offset %d\n", (UINT64)(&vmcallinfo->structsize) - (UINT64)vmcallinfo);
+	LogInfo("level2pass at offset %d\n", (UINT64)(&vmcallinfo->level2pass) - (UINT64)vmcallinfo);
+	LogInfo("command at offset %d\n", (UINT64)(&vmcallinfo->command) - (UINT64)vmcallinfo);
+	LogInfo("PhysicalPages[0] at offset %d\n", (UINT64)(&vmcallinfo->PhysicalPages[0]) - (UINT64)vmcallinfo);
+	LogInfo("PhysicalPages[1] at offset %d\n", (UINT64)(&vmcallinfo->PhysicalPages[1]) - (UINT64)vmcallinfo);
 
 
 	__try
 	{
 		int i;
 		vmcallinfo->structsize = sizeof(AddMemoryInfoCall) + count * sizeof(UINT64);
-		DbgPrint("vmcallinfo->structsize=%d\n", vmcallinfo->structsize);
+		LogInfo("vmcallinfo->structsize=%d\n", vmcallinfo->structsize);
 		vmcallinfo->level2pass = vmx_password2;
 		vmcallinfo->command = VMCALL_ADD_MEMORY;
 		j = 1;
@@ -741,7 +741,7 @@ unsigned int vmx_add_memory(UINT64 *list, int count)
 	}
 	__except (1)
 	{
-		DbgPrint("vmx_add_memory(%p,%d) gave an exception at part %d with exception code %x\n", list, count, j, GetExceptionCode());		
+		LogInfo("vmx_add_memory(%p,%d) gave an exception at part %d with exception code %x\n", list, count, j, GetExceptionCode());		
 		
 		r = 0x100;
 	}

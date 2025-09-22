@@ -185,7 +185,7 @@ DebugReg6 debugger_dr6_getValue(void)
 
 void debugger_touchDebugRegister(UINT_PTR param)
 {
-	//DbgPrint("Touching debug register. inepilogue=\n", DebuggerState.FakedDebugRegisterState[cpunr()].inEpilogue);
+	//LogInfo("Touching debug register. inepilogue=\n", DebuggerState.FakedDebugRegisterState[cpunr()].inEpilogue);
 
 	
 	debugger_dr0_setValue(debugger_dr0_getValue());
@@ -194,13 +194,13 @@ void debugger_touchDebugRegister(UINT_PTR param)
 
 void debugger_initialize(void)
 {
-	//DbgPrint("Initializing debugger events\n");
+	//LogInfo("Initializing debugger events\n");
 
 	KeInitializeEvent(&debugger_event_WaitForContinue, SynchronizationEvent, FALSE);	
 	KeInitializeEvent(&debugger_event_CanBreak, SynchronizationEvent, TRUE); //true so the first can enter
 	KeInitializeEvent(&debugger_event_WaitForDebugEvent, SynchronizationEvent, FALSE);
 
-	//DbgPrint("DebuggerState.fxstate=%p\n",DebuggerState.fxstate);
+	//LogInfo("DebuggerState.fxstate=%p\n",DebuggerState.fxstate);
 
 
 
@@ -282,7 +282,7 @@ void debugger_growstack()
 
 void debugger_setInitialFakeState(void)
 {	
-	//DbgPrint("setInitialFakeState for cpu %d\n",cpunr());
+	//LogInfo("setInitialFakeState for cpu %d\n",cpunr());
 	DebuggerState.FakedDebugRegisterState[cpunr()].DR0=debugger_dr0_getValue();
 	DebuggerState.FakedDebugRegisterState[cpunr()].DR1=debugger_dr1_getValue();
 	DebuggerState.FakedDebugRegisterState[cpunr()].DR2=debugger_dr2_getValue();
@@ -298,7 +298,7 @@ VOID debugger_initHookForCurrentCPU_DPC(IN struct _KDPC *Dpc, IN PVOID  Deferred
 
 int debugger_removeHookForCurrentCPU(UINT_PTR params)
 {
-	//DbgPrint("Unhooking int1 for this cpu\n");
+	//LogInfo("Unhooking int1 for this cpu\n");
     return inthook_UnhookInterrupt(1);	
 }
 
@@ -308,18 +308,18 @@ Must be called for each cpu
 */
 {
 	int result=TRUE;
-	//DbgPrint("Hooking int1 for cpu %d\n", cpunr());
+	//LogInfo("Hooking int1 for cpu %d\n", cpunr());
 	
 	result=inthook_HookInterrupt(1,getCS() & 0xfff8, (ULONG_PTR)interrupt1_asmentry, &Int1JumpBackLocation);	
 
 #ifdef AMD64
 	if (result)
 	{
-		;//DbgPrint("hooked int1. Int1JumpBackLocation=%x:%llx\n", Int1JumpBackLocation.cs, Int1JumpBackLocation.eip);
+		;//LogInfo("hooked int1. Int1JumpBackLocation=%x:%llx\n", Int1JumpBackLocation.cs, Int1JumpBackLocation.eip);
 	}
 	else
 	{
-		//DbgPrint("Failed hooking interrupt 1\n");
+		//LogInfo("Failed hooking interrupt 1\n");
 		return result;
 	}
 #endif
@@ -328,16 +328,16 @@ Must be called for each cpu
 	{
 		//set the fake state
 		//debugger_setInitialFakeState();
-		//DbgPrint("Setting GD bit for cpu %d\n",cpunr());
+		//LogInfo("Setting GD bit for cpu %d\n",cpunr());
 
 		debugger_dr7_setGD(1); //enable the GD flag		
 	}
 
 	/*if (DebuggerState.storeLBR)
 	{		
-		//DbgPrint("Enabling LBR logging. IA32_DEBUGCTL was %x\n", __readmsr(0x1d9));
+		//LogInfo("Enabling LBR logging. IA32_DEBUGCTL was %x\n", __readmsr(0x1d9));
 		__writemsr(0x1d9, __readmsr(0x1d9) | 1);
-		//DbgPrint("Enabling LBR logging. IA32_DEBUGCTL is  %x\n", __readmsr(0x1d9));
+		//LogInfo("Enabling LBR logging. IA32_DEBUGCTL is  %x\n", __readmsr(0x1d9));
 	}*/
 		
 	return result;
@@ -348,9 +348,9 @@ void debugger_setStoreLBR(BOOL state)
 	return; //disabled for now
 	/*
 	//if (state)
-	//	DbgPrint("Setting storeLBR to true\n");
+	//	LogInfo("Setting storeLBR to true\n");
 	//else
-	//	DbgPrint("Setting storeLBR to false\n");
+	//	LogInfo("Setting storeLBR to false\n");
 
 	DebuggerState.storeLBR=state; //it's not THAT crucial to disable/enable it
 
@@ -379,7 +379,7 @@ void debugger_setStoreLBR(BOOL state)
           break;
     }
 
-	//DbgPrint("Because your cpu_model=%d I think that your storeLBR_max=%d\n", cpu_model, DebuggerState.storeLBR_max);
+	//LogInfo("Because your cpu_model=%d I think that your storeLBR_max=%d\n", cpu_model, DebuggerState.storeLBR_max);
 	*/
 	
 }
@@ -388,7 +388,7 @@ void debugger_setStoreLBR(BOOL state)
 int debugger_setGlobalDebugState(BOOL state)
 //call this BEFORE debugging, if already debugging, the user must call this for each cpu
 {
-	//DbgPrint("debugger_setGlobalDebugState(%d)\n",state);
+	//LogInfo("debugger_setGlobalDebugState(%d)\n",state);
 	if (state)
 	  DebuggerState.globalDebug=state; //on enable set this first
 
@@ -396,8 +396,8 @@ int debugger_setGlobalDebugState(BOOL state)
 	{
 		int oldEpilogueState=DebuggerState.FakedDebugRegisterState[cpunr()].inEpilogue;
 
-		//DbgPrint("Int 1 is hooked,%ssetting GD\n",(state ? "":"un"));
-		//DbgPrint("oldEpilogueState=%d\n",oldEpilogueState);
+		//LogInfo("Int 1 is hooked,%ssetting GD\n",(state ? "":"un"));
+		//LogInfo("oldEpilogueState=%d\n",oldEpilogueState);
 		//debugger_setInitialFakeState();
 
 		DebuggerState.FakedDebugRegisterState[cpunr()].inEpilogue=TRUE;
@@ -422,12 +422,12 @@ int debugger_startDebugging(DWORD debuggedProcessID)
 Call this AFTER the interrupts are hooked
 */
 {
-	//DbgPrint("debugger_startDebugging. Processid=%x\n",debuggedProcessID);
+	//LogInfo("debugger_startDebugging. Processid=%x\n",debuggedProcessID);
 	Int1JumpBackLocation.eip=inthook_getOriginalEIP(1);
 	Int1JumpBackLocation.cs=inthook_getOriginalCS(1);
 
 #ifdef AMD64
-	//DbgPrint("Int1 jump back = %x:%llx\n", Int1JumpBackLocation.cs, Int1JumpBackLocation.eip);
+	//LogInfo("Int1 jump back = %x:%llx\n", Int1JumpBackLocation.cs, Int1JumpBackLocation.eip);
 #endif
 
 	DebuggerState.isDebugging=TRUE;
@@ -440,14 +440,14 @@ int debugger_stopDebugging(void)
 {	
 	int i;
 
-	//DbgPrint("Stopping the debugger if it is running\n");
+	//LogInfo("Stopping the debugger if it is running\n");
 
 	DebuggerState.stoppingTheDebugger=TRUE;	
 
 	if (DebuggerState.globalDebug)
 	{
 		//touch the global debug for each debug processor
-		//DbgPrint("Touching the debug registers\n");
+		//LogInfo("Touching the debug registers\n");
         forEachCpuPassive(debugger_touchDebugRegister, 0);
 	}
 
@@ -479,7 +479,7 @@ int debugger_setGDBreakpoint(int breakpointnr, ULONG_PTR Address, BreakType bt, 
 Will register a specific breakpoint. If global debug is used it'll set this debug register accordingly
 */
 {
-	//DbgPrint("debugger_setGDBreakpoint(%d, %x, %d, %d)\n", breakpointnr, Address, bt, bl);
+	//LogInfo("debugger_setGDBreakpoint(%d, %x, %d, %d)\n", breakpointnr, Address, bt, bl);
 	DebuggerState.breakpoint[breakpointnr].active=TRUE;
 	DebuggerState.breakpoint[breakpointnr].address=Address;
 	DebuggerState.breakpoint[breakpointnr].breakType=bt;
@@ -492,7 +492,7 @@ NTSTATUS debugger_waitForDebugEvent(ULONG timeout)
 	NTSTATUS r;
 	LARGE_INTEGER wait;
 
-	//DbgPrint("debugger_waitForDebugEvent with timeout of %d\n",timeout);
+	//LogInfo("debugger_waitForDebugEvent with timeout of %d\n",timeout);
 
 	//-10000000LL=1 second
 	//-10000LL should be 1 millisecond
@@ -515,7 +515,7 @@ NTSTATUS debugger_continueDebugEvent(BOOL handled)
 Only call this by one thread only, and only when there's actually a debug eevnt in progress
 */
 {
-	//DbgPrint("debugger_continueDebugEvent\n");
+	//LogInfo("debugger_continueDebugEvent\n");
 	
 	DebuggerState.handledlastevent=handled;
 	KeSetEvent(&debugger_event_WaitForContinue, 0,FALSE);
@@ -532,7 +532,7 @@ UINT_PTR *debugger_getLastStackPointer(void)
 
 NTSTATUS debugger_getDebuggerState(PDebugStackState state)
 {
-	//DbgPrint("debugger_getDebuggerState\n");
+	//LogInfo("debugger_getDebuggerState\n");
 	state->threadid=(UINT64)DebuggerState.LastThreadID;
 	state->causedbydbvm = (UINT64)DebuggerState.CausedByDBVM;
 	if (DebuggerState.LastStackPointer)
@@ -600,13 +600,13 @@ NTSTATUS debugger_getDebuggerState(PDebugStackState state)
 
 		 /*if (DebuggerState.storeLBR)
 		{
-			//DbgPrint("Copying the LBR stack to usermode\n");
-			//DbgPrint("storeLBR_max=%d\n", DebuggerState.storeLBR_max);
+			//LogInfo("Copying the LBR stack to usermode\n");
+			//LogInfo("storeLBR_max=%d\n", DebuggerState.storeLBR_max);
 
 		
 			for (state->LBR_Count=0; state->LBR_Count<DebuggerState.storeLBR_max; state->LBR_Count++ )
 			{
-				//DbgPrint("DebuggerState.LastLBRStack[%d]=%x\n", state->LBR_Count, DebuggerState.LastLBRStack[state->LBR_Count]);
+				//LogInfo("DebuggerState.LastLBRStack[%d]=%x\n", state->LBR_Count, DebuggerState.LastLBRStack[state->LBR_Count]);
 				state->LBR[state->LBR_Count]=DebuggerState.LastLBRStack[state->LBR_Count];
 				if (state->LBR[state->LBR_Count]==0) //no need to copy once a 0 has been reached
 					break;				
@@ -620,7 +620,7 @@ NTSTATUS debugger_getDebuggerState(PDebugStackState state)
 	}
 	else
 	{
-		//DbgPrint("debugger_getDebuggerState was called while DebuggerState.LastStackPointer was still NULL");
+		//LogInfo("debugger_getDebuggerState was called while DebuggerState.LastStackPointer was still NULL");
 		return STATUS_UNSUCCESSFUL;
 	}
 }
@@ -631,7 +631,7 @@ NTSTATUS debugger_setDebuggerState(PDebugStackState state)
 	{
 		DebuggerState.LastStackPointer[si_eflags]=(UINT_PTR)state->rflags;
 
-		//DbgPrint("have set eflags to %x\n",DebuggerState.LastStackPointer[si_eflags]);
+		//LogInfo("have set eflags to %x\n",DebuggerState.LastStackPointer[si_eflags]);
 
 
 		DebuggerState.LastStackPointer[si_eax]=(UINT_PTR)state->rax;
@@ -696,7 +696,7 @@ NTSTATUS debugger_setDebuggerState(PDebugStackState state)
 	}
 	else
 	{
-		//DbgPrint("debugger_setDebuggerState was called while DebuggerState.LastStackPointer was still NULL");
+		//LogInfo("debugger_setDebuggerState was called while DebuggerState.LastStackPointer was still NULL");
 		return STATUS_UNSUCCESSFUL;
 	}
 
@@ -714,17 +714,17 @@ int breakpointHandler_kernel(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs,
 	
 	
 	
-	//DbgPrint("breakpointHandler for kernel breakpoints\n");
+	//LogInfo("breakpointHandler for kernel breakpoints\n");
 
 #ifdef AMD64
-	//DbgPrint("cs=%x ss=%x ds=%x es=%x fs=%x gs=%x\n",getCS(), getSS(), getDS(), getES(), getFS(), getGS());
+	//LogInfo("cs=%x ss=%x ds=%x es=%x fs=%x gs=%x\n",getCS(), getSS(), getDS(), getES(), getFS(), getGS());
 
-	//DbgPrint("fsbase=%llx gsbase=%llx gskernel=%llx\n", readMSR(0xc0000100), readMSR(0xc0000101), readMSR(0xc0000102));
+	//LogInfo("fsbase=%llx gsbase=%llx gskernel=%llx\n", readMSR(0xc0000100), readMSR(0xc0000101), readMSR(0xc0000102));
 
-	//DbgPrint("rbp=%llx\n", getRBP());
+	//LogInfo("rbp=%llx\n", getRBP());
 
-	//DbgPrint("gs:188=%llx\n", __readgsqword(0x188));
-	//DbgPrint("causedbyDBVM=%d\n", causedbyDBVM);
+	//LogInfo("gs:188=%llx\n", __readgsqword(0x188));
+	//LogInfo("causedbyDBVM=%d\n", causedbyDBVM);
 #endif
 	
 	if (KeGetCurrentIrql()==0)
@@ -732,7 +732,7 @@ int breakpointHandler_kernel(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs,
 		//crititical section here
 		if ((stackpointer[si_cs] & 3)==0)
 		{
-			//DbgPrint("Going to wait in a kernelmode routine\n");
+			//LogInfo("Going to wait in a kernelmode routine\n");
 		}
 
 	
@@ -742,13 +742,13 @@ int breakpointHandler_kernel(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs,
 			r=KeWaitForSingleObject(&debugger_event_CanBreak,Executive, KernelMode, FALSE, NULL);
 			//check r and handle specific events
 
-			//DbgPrint("Woke up. r=%x\n",r);
+			//LogInfo("Woke up. r=%x\n",r);
 				
 		}
 
 		if ((stackpointer[si_cs] & 3)==0)
 		{
-			//DbgPrint("Woke up in a kernelmode routine\n");
+			//LogInfo("Woke up in a kernelmode routine\n");
 		}
 		
 
@@ -784,13 +784,13 @@ int breakpointHandler_kernel(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs,
 			//wt.QuadPart=-10000000LL; 
 			//s=KeDelayExecutionThread(KernelMode, FALSE, &wt);
 
-			//DbgPrint("Waiting...\n");
+			//LogInfo("Waiting...\n");
 
 
 			while (s != STATUS_SUCCESS)
 			{
 				s=KeWaitForSingleObject(&debugger_event_WaitForContinue, Executive, KernelMode, FALSE, NULL);
-				//DbgPrint("KeWaitForSingleObject=%x\n",s);		
+				//LogInfo("KeWaitForSingleObject=%x\n",s);		
 			}
 
 			
@@ -799,7 +799,7 @@ int breakpointHandler_kernel(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs,
 			{
 				if (DebuggerState.handledlastevent)
 				{
-					//DbgPrint("handledlastevent=TRUE");
+					//LogInfo("handledlastevent=TRUE");
 					handled=1;
 				}
 				else
@@ -816,17 +816,17 @@ int breakpointHandler_kernel(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs,
 		//i'm done, let other threads catch it
 		KeSetEvent(&debugger_event_CanBreak, 0, FALSE);
 
-		//DbgPrint("Returning after a wait. handled=%d and eflags=%x\n",handled, stackpointer[si_eflags]);
+		//LogInfo("Returning after a wait. handled=%d and eflags=%x\n",handled, stackpointer[si_eflags]);
 		if ((stackpointer[si_cs] & 3)==0) //check rpl of cs
 		{
-			//DbgPrint("and in kernelmode\n");
+			//LogInfo("and in kernelmode\n");
 		}
 
 		return handled;
 	}
 	else
 	{
-		//DbgPrint("Breakpoint wasn't at passive level. Screw this, i'm not going to break here\n");
+		//LogInfo("Breakpoint wasn't at passive level. Screw this, i'm not going to break here\n");
 		
 		return 1;
 	}
@@ -876,13 +876,13 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 	*/
 	
 
-	//DbgPrint("interrupt1_handler(%p). DR6=%x (%x) DR7=%x %x:%p\n", interrupt1_handler, originaldr6, debugger_dr6_getValueDword(), debugger_dr7_getValueDword(), stackpointer[si_cs], (void*)(stackpointer[si_eip]));
+	//LogInfo("interrupt1_handler(%p). DR6=%x (%x) DR7=%x %x:%p\n", interrupt1_handler, originaldr6, debugger_dr6_getValueDword(), debugger_dr7_getValueDword(), stackpointer[si_cs], (void*)(stackpointer[si_eip]));
 	
 	//check if this break should be handled or not
 	
 	if (DebuggerState.globalDebug)
 	{
-		//DbgPrint("DebuggerState.globalDebug=TRUE\n");
+		//LogInfo("DebuggerState.globalDebug=TRUE\n");
 		//global debugging is being used
 		if (_dr6.BD)
 		{
@@ -913,7 +913,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 				}
 
 
-				//DbgPrint("handler: Setting fake dr6 to %x\n",*(UINT_PTR *)&_dr6);
+				//LogInfo("handler: Setting fake dr6 to %x\n",*(UINT_PTR *)&_dr6);
 
 				DebuggerState.FakedDebugRegisterState[cpunr()].DR6 = *(UINT_PTR *)&_dr6;
 
@@ -937,19 +937,19 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 
 	#endif
 
-				//DbgPrint("debugregister=%d, generalpurposeregister=%d\n",debugregister,generalpurposeregister); 
+				//LogInfo("debugregister=%d, generalpurposeregister=%d\n",debugregister,generalpurposeregister); 
 
 				if (instruction[instructionPointer + 1] == 0x21)
 				{
 					UINT_PTR drvalue = 0;
-					//DbgPrint("read opperation\n");
+					//LogInfo("read opperation\n");
 					//21=read
 					switch (debugregister)
 					{
 					case 0:
 
 						drvalue = DebuggerState.FakedDebugRegisterState[cpunr()].DR0;
-						//DbgPrint("Reading DR0 (returning %x real %x)\n", drvalue, currentdebugregs[0]); 
+						//LogInfo("Reading DR0 (returning %x real %x)\n", drvalue, currentdebugregs[0]); 
 						break;
 
 					case 1:
@@ -967,7 +967,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 					case 4:
 					case 6:
 						drvalue = DebuggerState.FakedDebugRegisterState[cpunr()].DR6;
-						//DbgPrint("reading dr6 value:%x\n",drvalue);
+						//LogInfo("reading dr6 value:%x\n",drvalue);
 						break;
 
 					case 5:
@@ -976,7 +976,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 						break;
 
 					default:
-						//DbgPrint("Invalid debugregister\n");
+						//LogInfo("Invalid debugregister\n");
 						drvalue = 0;
 						break;
 					}
@@ -1062,7 +1062,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 					{
 						//23=write
 						UINT_PTR gpvalue = 0;
-						//DbgPrint("Write operation\n");
+						//LogInfo("Write operation\n");
 						switch (generalpurposeregister)
 						{
 						case 0:
@@ -1132,7 +1132,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 							break;
 
 						default:
-							//DbgPrint("Invalid register value\n");
+							//LogInfo("Invalid register value\n");
 							break;
 	#endif
 						}
@@ -1141,7 +1141,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 						switch (debugregister)
 						{
 						case 0:
-							//DbgPrint("Writing DR0. Original value=%x new value=%x\n", currentdebugregs[0], gpvalue);
+							//LogInfo("Writing DR0. Original value=%x new value=%x\n", currentdebugregs[0], gpvalue);
 							debugger_dr0_setValue(gpvalue);
 							DebuggerState.FakedDebugRegisterState[cpunr()].DR0 = debugger_dr0_getValue();
 							break;
@@ -1163,10 +1163,10 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 
 						case 4:
 						case 6:
-							//DbgPrint("Setting dr6 to %x (was %x)\n", gpvalue, DebuggerState.FakedDebugRegisterState[cpunr()].DR6);							
+							//LogInfo("Setting dr6 to %x (was %x)\n", gpvalue, DebuggerState.FakedDebugRegisterState[cpunr()].DR6);							
 							_dr6 = *(DebugReg6 *)&gpvalue;
 
-							//if (_dr6.BD) DbgPrint("Some code wants to set the BD flag to 1\n");
+							//if (_dr6.BD) LogInfo("Some code wants to set the BD flag to 1\n");
 							
 
 
@@ -1185,7 +1185,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 						case 5:
 						case 7:
 							//make sure it doesn't set the GD flag here
-							//DbgPrint("DR7 write\n");
+							//LogInfo("DR7 write\n");
 
 							//if (generalpurposeregister == 15)
 							//{
@@ -1194,7 +1194,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 
 							//if (DebuggerState.FakedDebugRegisterState[cpunr()].inEpilogue)
 							//{
-								//	DbgPrint("Was in epilogue\n");
+								//	LogInfo("Was in epilogue\n");
 							//}
 
 							//check for invalid bits and raise a GPF if invalid
@@ -1215,12 +1215,12 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 					}
 					else
 					{
-						//DbgPrint("Some unknown instruction accessed the debug registers?\n");
+						//LogInfo("Some unknown instruction accessed the debug registers?\n");
 						//if (CurrentProcessID==(HANDLE)(UINT_PTR)DebuggerState.debuggedProcessID)
-						//	DbgPrint("Happened inside the target process\n");
+						//	LogInfo("Happened inside the target process\n");
 
-						//DbgPrint("interrupt1_handler dr6=%x (original=%x) dr7=%d\n",_dr6, originaldr6, _dr7);
-						//DbgPrint("eip=%x\n",stackpointer[si_eip]);
+						//LogInfo("interrupt1_handler dr6=%x (original=%x) dr7=%d\n",_dr6, originaldr6, _dr7);
+						//LogInfo("eip=%x\n",stackpointer[si_eip]);
 					}
 
 				//adjust eip to after this instruction
@@ -1230,7 +1230,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 			}
 			else
 			{
-				//DbgPrint("DR6.BD == 1 in USERMODE! WTF\n");
+				//LogInfo("DR6.BD == 1 in USERMODE! WTF\n");
 				_dr6.BD = 0;
 				debugger_dr6_setValue(*(UINT_PTR *)&_dr6);
 				DebuggerState.FakedDebugRegisterState[cpunr()].DR6 = debugger_dr6_getValueDword();
@@ -1257,7 +1257,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 	
 	if (DebuggerState.isDebugging)
 	{
-		//DbgPrint("DebuggerState.isDebugging\n");
+		//LogInfo("DebuggerState.isDebugging\n");
 		//check if this should break
 		if (CurrentProcessID == (HANDLE)(UINT_PTR)DebuggerState.debuggedProcessID)
 		{
@@ -1268,15 +1268,15 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 			if ((((PEFLAGS)&stackpointer[si_eflags])->IF == 0) || (KeGetCurrentIrql() != PASSIVE_LEVEL))
 			{
 				//There's no way to display the state to the usermode part of CE
-				//DbgPrint("int1 at unstoppable location");
+				//LogInfo("int1 at unstoppable location");
 				if (!KernelCodeStepping)
 				{
 					((PEFLAGS)&stackpointer[si_eflags])->TF = 0; //just give up stepping
-				//	DbgPrint("Quitting this");
+				//	LogInfo("Quitting this");
 				}
 				else
 				{
-					//	DbgPrint("Stepping until valid\n");
+					//	LogInfo("Stepping until valid\n");
 					((PEFLAGS)&stackpointer[si_eflags])->TF = 1; //keep going until a valid state
 					DebuggerState.isSteppingTillClear = TRUE; //Just in case a taskswitch happens right after enabling passive level with interrupts
 				}
@@ -1290,7 +1290,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 
 
 
-			//DbgPrint("CurrentProcessID==(HANDLE)(UINT_PTR)DebuggerState.debuggedProcessID\n");
+			//LogInfo("CurrentProcessID==(HANDLE)(UINT_PTR)DebuggerState.debuggedProcessID\n");
 
 			if (DebuggerState.globalDebug)
 			{
@@ -1302,18 +1302,18 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 				originaldebugregs[5] = DebuggerState.FakedDebugRegisterState[cpunr()].DR7;
 			}
 
-			//DbgPrint("BP in target process\n");
+			//LogInfo("BP in target process\n");
 
 			//no extra checks if it's caused by the debugger or not. That is now done in the usermode part
 			//if (*(PEFLAGS)(&stackpointer[si_eflags]).IF)	
 /*
 			if (((PEFLAGS)&stackpointer[si_eflags])->IF==0)
 			{
-				//DbgPrint("Breakpoint while interrupts are disabled: %x\n",stackpointer[si_eip]);
+				//LogInfo("Breakpoint while interrupts are disabled: %x\n",stackpointer[si_eip]);
 				//An breakpoint happened while IF was 0. Step through the code untill IF is 1
 				((PEFLAGS)&stackpointer[si_eflags])->RF=1;
 				((PEFLAGS)&stackpointer[si_eflags])->TF=1; //keep going until IF=1
-				DbgPrint("IF==0\n");
+				LogInfo("IF==0\n");
 				return 1; //don't handle it but also don't tell windows
 			}*/
 
@@ -1379,7 +1379,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 			{
 				int rs=1;	
 
-				//DbgPrint("calling breakpointHandler_kernel\n");
+				//LogInfo("calling breakpointHandler_kernel\n");
 
 				if (SelectedStackEntry == NULL) //fuck
 					rs = breakpointHandler_kernel(stackpointer, currentdebugregs, LBR_Stack, causedbyDBVM);
@@ -1388,7 +1388,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 
 				
 				
-				//DbgPrint("After handler\n");
+				//LogInfo("After handler\n");
 /*
 				if (SelectedStackEntry)  //restore the stack
 				{
@@ -1397,7 +1397,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 				}
 				*/
 				
-				//DbgPrint("rs=%d\n",rs);
+				//LogInfo("rs=%d\n",rs);
 
 
 				disableInterrupts();
@@ -1420,7 +1420,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 					
 					/*if (getDR7() != oldDR7)
 					{
-						DbgPrint("Something changed DR7. old=%llx new=%llx\n",oldDR7, getDR7());
+						LogInfo("Something changed DR7. old=%llx new=%llx\n",oldDR7, getDR7());
 					}*/
 
 					
@@ -1434,7 +1434,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 
 					if ((currentdebugregs[5] >> 13) & 1)
 					{
-					//	DbgPrint("WTF? GD is 1 in currentdebugregs[5]: %llx\n", currentdebugregs[5]);
+					//	LogInfo("WTF? GD is 1 in currentdebugregs[5]: %llx\n", currentdebugregs[5]);
 					}
 					else
 						debugger_dr7_setValue(*(DebugReg7 *)&currentdebugregs[5]);	
@@ -1446,7 +1446,7 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 		}
 		else 
 		{
-			//DbgPrint("Not the debugged process (%x != %x)\n",CurrentProcessID,DebuggerState.debuggedProcessID );
+			//LogInfo("Not the debugged process (%x != %x)\n",CurrentProcessID,DebuggerState.debuggedProcessID );
 			//check if this break is due to a breakpoint ce has set. (during global debug threadsurfing))
 			//do that by checking if the breakpoint condition exists in the FAKE dr7 registers
 			//if so, let windows handle it, if not, it is caused by ce, which then means, skip (so execute normally)
@@ -1457,10 +1457,10 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 				DebugReg7 dr7=*(DebugReg7 *)&DebuggerState.FakedDebugRegisterState[cpunr()].DR7;
 
 				//real dr6		//fake dr7
-				if ((dr6.B0) && (!(dr7.L0 || dr7.G0))) { /*DbgPrint("setting RF because of B0\n");*/ ((PEFLAGS)&stackpointer[si_eflags])->RF=1; return 1; } //break caused by DR0 and not expected by the current process, ignore this bp and continue
-				if ((dr6.B1) && (!(dr7.L1 || dr7.G1))) { /*DbgPrint("setting RF because of B1\n");*/ ((PEFLAGS)&stackpointer[si_eflags])->RF=1; return 1; } //		...		DR1		...
-				if ((dr6.B2) && (!(dr7.L2 || dr7.G2))) { /*DbgPrint("setting RF because of B2\n");*/ ((PEFLAGS)&stackpointer[si_eflags])->RF=1; return 1; }  //		...		DR2		...
-				if ((dr6.B3) && (!(dr7.L3 || dr7.G3))) { /*DbgPrint("setting RF because of B3\n");*/ ((PEFLAGS)&stackpointer[si_eflags])->RF=1; return 1; }  //		...		DR3		...
+				if ((dr6.B0) && (!(dr7.L0 || dr7.G0))) { /*LogInfo("setting RF because of B0\n");*/ ((PEFLAGS)&stackpointer[si_eflags])->RF=1; return 1; } //break caused by DR0 and not expected by the current process, ignore this bp and continue
+				if ((dr6.B1) && (!(dr7.L1 || dr7.G1))) { /*LogInfo("setting RF because of B1\n");*/ ((PEFLAGS)&stackpointer[si_eflags])->RF=1; return 1; } //		...		DR1		...
+				if ((dr6.B2) && (!(dr7.L2 || dr7.G2))) { /*LogInfo("setting RF because of B2\n");*/ ((PEFLAGS)&stackpointer[si_eflags])->RF=1; return 1; }  //		...		DR2		...
+				if ((dr6.B3) && (!(dr7.L3 || dr7.G3))) { /*LogInfo("setting RF because of B3\n");*/ ((PEFLAGS)&stackpointer[si_eflags])->RF=1; return 1; }  //		...		DR3		...
 			}
 
 			if (causedbyDBVM)
@@ -1468,14 +1468,14 @@ int interrupt1_handler(UINT_PTR *stackpointer, UINT_PTR *currentdebugregs)
 
 			if (DebuggerState.isSteppingTillClear) //shouldn't happen often
 			{
-				//DbgPrint("That thing that shouldn\'t happen often happened\n");
+				//LogInfo("That thing that shouldn\'t happen often happened\n");
 				((PEFLAGS)&stackpointer[si_eflags])->TF = 0;
 
 				DebuggerState.isSteppingTillClear = 0;
 				return 1; //ignore
 			}
 
-			//DbgPrint("Returning unhandled. DR6=%x", debugger_dr6_getValueDword());
+			//LogInfo("Returning unhandled. DR6=%x", debugger_dr6_getValueDword());
 			
 			return 0; //still here, so let windows handle it
 
@@ -1497,7 +1497,7 @@ int interrupt1_centry(UINT_PTR *stackpointer) //code segment 8 has a 32-bit stac
 	UINT_PTR currentdebugregs[6]; //used for determining if the current bp is caused by the debugger or not
 	int handled=0; //if 0 at return, the interupt will be passed down to the operating system
 	QWORD naddress;
-	//DbgPrint("interrupt1_centry cpunr=%d esp=%x\n",cpunr(), getRSP());
+	//LogInfo("interrupt1_centry cpunr=%d esp=%x\n",cpunr(), getRSP());
 
 	//bsod crashfix, but also disables kernelmode stepping
 	IDT idt;
@@ -1569,7 +1569,7 @@ int interrupt1_centry(UINT_PTR *stackpointer) //code segment 8 has a 32-bit stac
 
 		
 
-		//DbgPrint("This was a dbvm hook. Changing if the interrupt return address is still valid\n");
+		//LogInfo("This was a dbvm hook. Changing if the interrupt return address is still valid\n");
 
 	//	Int1JumpBackLocation.cs=idt.vector[1].wSelector;
 	//	naddress=idt.vector[1].wLowOffset+(idt.vector[1].wHighOffset << 16);
@@ -1607,7 +1607,7 @@ int interrupt1_centry(UINT_PTR *stackpointer) //code segment 8 has a 32-bit stac
 
 			_dr6.BS=dr6.BS;
 			_dr6.BT=dr6.BT;
-			//DbgPrint("epilogue: Setting fake dr6 to %x (fake=%x)\n",*(DWORD *)&dr6, *(DWORD *)&_dr6);
+			//LogInfo("epilogue: Setting fake dr6 to %x (fake=%x)\n",*(DWORD *)&dr6, *(DWORD *)&_dr6);
 		}
 		
 
@@ -1633,7 +1633,7 @@ int interrupt1_centry(UINT_PTR *stackpointer) //code segment 8 has a 32-bit stac
 			{
 				
 				int foundone=0;
-			//	DbgPrint("Want to set breakpoint %d\n",breakpoint);
+			//	LogInfo("Want to set breakpoint %d\n",breakpoint);
 			
 				
 
@@ -1650,7 +1650,7 @@ int interrupt1_centry(UINT_PTR *stackpointer) //code segment 8 has a 32-bit stac
 					//check if this debugregister is usable
 					if (((DebuggerState.FakedDebugRegisterState[cpunr()].DR7 >> (debugregister*2)) & 3)==0)  //DR7.Gx and DR7.Lx are 0
 					{
-					  //  DbgPrint("debugregister %d is free to be used\n",debugregister);
+					  //  LogInfo("debugregister %d is free to be used\n",debugregister);
 						foundone=1;
 						
 						//set address
@@ -1701,14 +1701,14 @@ int interrupt1_centry(UINT_PTR *stackpointer) //code segment 8 has a 32-bit stac
 
 		debugger_dr7_setValue(_dr7);
 
-		//DbgPrint("after:\n");
+		//LogInfo("after:\n");
 
-		//DbgPrint("after fake DR0=%x real DR0=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR0, debugger_dr0_getValue());
-		//DbgPrint("after fake DR1=%x real DR1=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR1, debugger_dr1_getValue());
-		//DbgPrint("after fake DR2=%x real DR2=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR2, debugger_dr2_getValue());
-		//DbgPrint("after fake DR3=%x real DR3=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR3, debugger_dr3_getValue());
-		//DbgPrint("after fake DR6=%x real DR6=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR6, debugger_dr6_getValueDword());
-		//DbgPrint("after fake DR7=%x real DR7=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR7, debugger_dr7_getValueDword());
+		//LogInfo("after fake DR0=%x real DR0=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR0, debugger_dr0_getValue());
+		//LogInfo("after fake DR1=%x real DR1=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR1, debugger_dr1_getValue());
+		//LogInfo("after fake DR2=%x real DR2=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR2, debugger_dr2_getValue());
+		//LogInfo("after fake DR3=%x real DR3=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR3, debugger_dr3_getValue());
+		//LogInfo("after fake DR6=%x real DR6=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR6, debugger_dr6_getValueDword());
+		//LogInfo("after fake DR7=%x real DR7=%x\n",DebuggerState.FakedDebugRegisterState[currentcpunr].DR7, debugger_dr7_getValueDword());
 
 	}
 	else
@@ -1724,13 +1724,13 @@ int interrupt1_centry(UINT_PTR *stackpointer) //code segment 8 has a 32-bit stac
 
 	if (handled == 2)
 	{
-		//DbgPrint("handled==2\n");		
+		//LogInfo("handled==2\n");		
 		handled = 1; //epilogue = 1 Dr handler
 	}
 	else
 	{		
 		//not handled by the epilogue set DR0, so the actual epilogue
-		//DbgPrint("handled==1\n");
+		//LogInfo("handled==1\n");
 		
 		if (DebuggerState.globalDebug)
 		{
@@ -1742,9 +1742,9 @@ int interrupt1_centry(UINT_PTR *stackpointer) //code segment 8 has a 32-bit stac
 	}
 	//after=getRSP();
 
-	//DbgPrint("before=%llx after=%llx\n",before,after);
+	//LogInfo("before=%llx after=%llx\n",before,after);
 
-	//DbgPrint("end of interrupt1_centry. eflags=%x", stackpointer[si_eflags]);
+	//LogInfo("end of interrupt1_centry. eflags=%x", stackpointer[si_eflags]);
 
 	//if branch tracing set lbr back on (get's disabled on debug interrupts)	
 	/*

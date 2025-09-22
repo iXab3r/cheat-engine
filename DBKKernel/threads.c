@@ -47,19 +47,19 @@ void SuspendThreadAPCRoutine(PVOID arg1, PVOID arg2, PVOID arg3)
 {
 	LARGE_INTEGER Timeout;
 	struct ThreadData *x;
-	//DbgPrint("Inside SuspendThreadAPCRoutine\n");
+	//LogInfo("Inside SuspendThreadAPCRoutine\n");
 	   
 	
 	x=arg1;
 
-	//DbgPrint("x=%p",x);
-	DbgPrint("Waiting...\n");
+	//LogInfo("x=%p",x);
+	LogInfo("Waiting...\n");
 	Timeout.QuadPart = -999999999999999;	
 
 		
 	KeWaitForSingleObject(&(x->SuspendSemaphore), Suspended, KernelMode, FALSE, NULL);
 	//KeDelayExecutionThread(KernelMode, FALSE, &Timeout);
-	DbgPrint("Resuming...\n");
+	LogInfo("Resuming...\n");
 }
 
 void DBKSuspendThread(ULONG ThreadID)
@@ -69,7 +69,7 @@ void DBKSuspendThread(ULONG ThreadID)
 
 	if (ExAcquireResourceSharedLite(&ProcesslistR, TRUE))
 	{
-		DbgPrint("Going to suspend this thread\n");
+		LogInfo("Going to suspend this thread\n");
 
 		//find the thread in the threadlist
 
@@ -78,7 +78,7 @@ void DBKSuspendThread(ULONG ThreadID)
 		t_data = GetThreaddata(ThreadID);
 		if (t_data)
 		{
-			DbgPrint("Suspending thread....\n");
+			LogInfo("Suspending thread....\n");
 
 
 
@@ -96,14 +96,14 @@ void DBKSuspendThread(ULONG ThreadID)
 					t_data);
 
 			}
-			DbgPrint("x should be %p", t_data);
+			LogInfo("x should be %p", t_data);
 			t_data->suspendcount++;
 
 			if (t_data->suspendcount == 1) //not yet suspended so suspend it
 				KeInsertQueueApc(&t_data->SuspendApc, t_data, t_data, 0);
 		}
 		else
-			DbgPrint("Thread not found in the list\n");
+			LogInfo("Thread not found in the list\n");
 	}
 	ExReleaseResourceLite(&ProcesslistR);
 }
@@ -116,7 +116,7 @@ void DBKResumeThread(ULONG ThreadID)
 	if (ExAcquireResourceSharedLite(&ProcesslistR, TRUE))
 	{
 
-		DbgPrint("Going to resume this thread\n");
+		LogInfo("Going to resume this thread\n");
 
 		//find the thread in the threadlist
 
@@ -133,7 +133,7 @@ void DBKResumeThread(ULONG ThreadID)
 			}
 		}
 		else
-			DbgPrint("Thread not found in the list\n");
+			LogInfo("Thread not found in the list\n");
 	}
 	ExReleaseResourceLite(&ProcesslistR);
 
@@ -149,7 +149,7 @@ void DBKSuspendProcess(ULONG ProcessID)
 	{
 
 
-		DbgPrint("Going to suspend this process\n");
+		LogInfo("Going to suspend this process\n");
 
 		//find the process in the threadlist
 
@@ -166,7 +166,7 @@ void DBKSuspendProcess(ULONG ProcessID)
 
 		if (!t_data)
 		{
-			DbgPrint("This process was not found\n");
+			LogInfo("This process was not found\n");
 			ExReleaseResourceLite(&ProcesslistR);
 			return; //no process found
 		}
@@ -174,7 +174,7 @@ void DBKSuspendProcess(ULONG ProcessID)
 
 		while (t_data)
 		{
-			DbgPrint("Suspending thread....\n");
+			LogInfo("Suspending thread....\n");
 
 			if (!t_data->PEThread)
 			{
@@ -190,7 +190,7 @@ void DBKSuspendProcess(ULONG ProcessID)
 					t_data);
 
 			}
-			DbgPrint("x should be %p", t_data);
+			LogInfo("x should be %p", t_data);
 			t_data->suspendcount++;
 
 			if (t_data->suspendcount == 1) //not yet suspended so suspend it
@@ -212,7 +212,7 @@ void DBKResumeProcess(ULONG ProcessID)
 	if (ExAcquireResourceSharedLite(&ProcesslistR, TRUE))
 	{
 
-		DbgPrint("Going to suspend this process\n");
+		LogInfo("Going to suspend this process\n");
 
 		//find the process in the threadlist
 
@@ -229,7 +229,7 @@ void DBKResumeProcess(ULONG ProcessID)
 
 		if (!t_data)
 		{
-			DbgPrint("This process was not found\n");
+			LogInfo("This process was not found\n");
 			ExReleaseResourceLite(&ProcesslistR);
 			return; //no process found
 		}
@@ -237,7 +237,7 @@ void DBKResumeProcess(ULONG ProcessID)
 
 		while (t_data)
 		{
-			DbgPrint("Resuming thread....\n");
+			LogInfo("Resuming thread....\n");
 
 			if (t_data->suspendcount)
 			{

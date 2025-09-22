@@ -66,3 +66,4 @@ Cheat Engine/MonoDataCollector/MonoDataCollector/MonoDataCollector.vcxproj
 .vs/
 .idea
 /DBKKernel/x64/Releasewithoutsig/
+/DBKKernel/x64/Debug/

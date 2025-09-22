@@ -11,7 +11,20 @@
 #include "interruptHook.h"
 
 #ifdef RELEASE
-#define DbgPrint(...)
+#define LogInfo(...) 
+#define LogWarn(...) 
+#define LogError(...) 
+#define LogTrace(...) 
+#else
+
+// Map legacy DbgPrint to modern DbgPrintEx with IHV driver component and info level
+#ifndef DbgPrint
+#define LogInfo(...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, __VA_ARGS__)
+#define LogWarn(...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_WARNING_LEVEL, __VA_ARGS__)
+#define LogError(...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, __VA_ARGS__)
+#define LogTrace(...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL, __VA_ARGS__)
+#endif
+
 #endif
 
 int _fltused;

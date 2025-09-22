@@ -16,7 +16,7 @@ BOOLEAN ProcessWatcherOpensHandles = TRUE;
 
 RTL_GENERIC_COMPARE_RESULTS NTAPI ProcessListCompare(__in struct _RTL_GENERIC_TABLE *Table, __in PProcessListData FirstStruct, __in PProcessListData SecondStruct)
 {
-	//DbgPrint("ProcessListCompate");
+	//LogInfo("ProcessListCompate");
 
 	if (FirstStruct->ProcessID  == SecondStruct->ProcessID)
 		return GenericEqual;
@@ -34,13 +34,13 @@ PVOID NTAPI ProcessListAlloc(__in struct _RTL_GENERIC_TABLE *Table, __in CLONG B
 	PVOID r=ExAllocatePool(PagedPool, ByteSize);
 	RtlZeroMemory(r, ByteSize);
 
-	//DbgPrint("ProcessListAlloc %d",(int)ByteSize);
+	//LogInfo("ProcessListAlloc %d",(int)ByteSize);
 	return r;
 }
 
 VOID NTAPI ProcessListDealloc(__in struct _RTL_GENERIC_TABLE *Table, __in __drv_freesMem(Mem) __post_invalid PVOID Buffer)
 {
-	//DbgPrint("ProcessListDealloc");
+	//LogInfo("ProcessListDealloc");
 	ExFreePool(Buffer);
 }
 
@@ -55,7 +55,7 @@ VOID GetThreadData(IN PDEVICE_OBJECT  DeviceObject, IN PVOID  Context)
 	tempThreadEntry=Context;
 	
 
-	DbgPrint("Gathering PEThread thread\n");
+	LogInfo("Gathering PEThread thread\n");
 
 	Timeout.QuadPart = -1;
 	KeDelayExecutionThread(KernelMode, TRUE, &Timeout);
@@ -71,7 +71,7 @@ VOID GetThreadData(IN PDEVICE_OBJECT  DeviceObject, IN PVOID  Context)
 
 		if (selectedthread)
 		{
-			DbgPrint("PEThread=%p\n", selectedthread);
+			LogInfo("PEThread=%p\n", selectedthread);
 			KeInitializeApc(AP,
 				(PKTHREAD)selectedthread,
 				0,
@@ -85,7 +85,7 @@ VOID GetThreadData(IN PDEVICE_OBJECT  DeviceObject, IN PVOID  Context)
 		}
 		else
 		{
-			DbgPrint("Failed getting the pethread.\n");
+			LogInfo("Failed getting the pethread.\n");
 		}
 	}
 	ExReleaseResourceLite(&ProcesslistR);
@@ -109,9 +109,9 @@ VOID CreateThreadNotifyRoutine(IN HANDLE  ProcessId,IN HANDLE  ThreadId,IN BOOLE
 				ThreadEventData[ThreadEventCount].ThreadID = (UINT_PTR)ThreadId;
 
 				/*	if (Create)
-						DbgPrint("Create ProcessID=%x\nThreadID=%x\n",(UINT_PTR)ProcessId,(UINT_PTR)ThreadId);
+						LogInfo("Create ProcessID=%x\nThreadID=%x\n",(UINT_PTR)ProcessId,(UINT_PTR)ThreadId);
 						else
-						DbgPrint("Destroy ProcessID=%x\nThreadID=%x\n",(UINT_PTR)ProcessId,(UINT_PTR)ThreadId);
+						LogInfo("Destroy ProcessID=%x\nThreadID=%x\n",(UINT_PTR)ProcessId,(UINT_PTR)ThreadId);
 						*/
 
 				ThreadEventCount++;
@@ -131,9 +131,9 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 	/*
 	if (PsSuspendProcess)
 	{
-		DbgPrint("Suspending process %d", PsGetCurrentThreadId());
+		LogInfo("Suspending process %d", PsGetCurrentThreadId());
 		PsSuspendProcess(PsGetCurrentProcess());
-		DbgPrint("After PsGetCurrentProcess()");
+		LogInfo("After PsGetCurrentProcess()");
 	}
 */
 	
@@ -165,10 +165,10 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 					HANDLE ph = 0;
 					NTSTATUS r = ObOpenObjectByPointer(CurrentProcess, 0, NULL, PROCESS_ALL_ACCESS, *PsProcessType, KernelMode, &ph);
 
-					DbgPrint("CreateProcessNotifyRoutine: ObOpenObjectByPointer=%x  ph=%x", r, ph);
+					LogInfo("CreateProcessNotifyRoutine: ObOpenObjectByPointer=%x  ph=%x", r, ph);
 					r = ZwDuplicateObject(ZwCurrentProcess(), ph, WatcherHandle, &ProcessHandle, PROCESS_ALL_ACCESS, 0, DUPLICATE_CLOSE_SOURCE);
 
-					DbgPrint("CreateProcessNotifyRoutine: ZwDuplicateObject=%x (handle=%x)", r, ProcessHandle);
+					LogInfo("CreateProcessNotifyRoutine: ZwDuplicateObject=%x (handle=%x)", r, ProcessHandle);
 					*/
 						
 					KAPC_STATE oldstate;
@@ -183,7 +183,7 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 						}
 						__except (1)
 						{
-							DbgPrint("Exception during ObOpenObjectByPointer");
+							LogInfo("Exception during ObOpenObjectByPointer");
 						}
 					}
 					__finally
@@ -217,22 +217,22 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 						BOOLEAN newElement = FALSE;
 						if (r) //weird
 						{
-							DbgPrint("Duplicate PID detected...");
+							LogInfo("Duplicate PID detected...");
 							RtlDeleteElementGenericTable(InternalProcessList, r);
 						}
 
 						r = RtlInsertElementGenericTable(InternalProcessList, &d, sizeof(d), &newElement);
 
 
-						DbgPrint("Added handle %x for pid %d to the list (newElement=%d r=%p)", (int)(UINT_PTR)d.ProcessHandle, (int)(UINT_PTR)d.ProcessID, newElement, r);
+						LogInfo("Added handle %x for pid %d to the list (newElement=%d r=%p)", (int)(UINT_PTR)d.ProcessHandle, (int)(UINT_PTR)d.ProcessID, newElement, r);
 					}
 					else
 					{
 						//remove it from the list (if it's there)
-						DbgPrint("Process %d destruction. r=%p", (int)(UINT_PTR)d.ProcessID, r);
+						LogInfo("Process %d destruction. r=%p", (int)(UINT_PTR)d.ProcessID, r);
 						if (r)
 						{
-							DbgPrint("Process that was in the list has been closed");
+							LogInfo("Process that was in the list has been closed");
 							//if (r->ProcessHandle)
 							//	ZwClose(r->ProcessHandle);
 
@@ -242,7 +242,7 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 
 						if (CurrentProcess == WatcherProcess)
 						{
-							DbgPrint("CE Closed");
+							LogInfo("CE Closed");
 							
 							//ZwClose(WatcherHandle);
 
@@ -276,7 +276,7 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 					tempProcessEntry->PEProcess = CurrentProcess;
 					tempProcessEntry->Threads = NULL;
 
-					DbgPrint("Allocated a process at:%p\n", tempProcessEntry);
+					LogInfo("Allocated a process at:%p\n", tempProcessEntry);
 
 					if (!processlist)
 					{
@@ -320,12 +320,12 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 							tempthread=tempProcessEntry->Threads;
 							tempthread2=tempthread;
 
-							DbgPrint("Process ended. Freeing threads\n");
+							LogInfo("Process ended. Freeing threads\n");
 
 							while (tempthread)
 							{
 							tempthread=tempthread->next;
-							DbgPrint("Free thread %p (next thread=%p)\n",tempthread2,tempthread);
+							LogInfo("Free thread %p (next thread=%p)\n",tempthread2,tempthread);
 							ExFreePool(tempthread2);
 							tempthread2=tempthread;
 							}
@@ -343,7 +343,7 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 								tempProcessEntry = tempProcessEntry->next;
 							}
 
-							DbgPrint("There are %d processes in the list\n", i);
+							LogInfo("There are %d processes in the list\n", i);
 
 							break;
 						}
@@ -371,7 +371,7 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 
 VOID CreateProcessNotifyRoutineEx(IN HANDLE  ParentId, IN HANDLE  ProcessId, __in_opt PPS_CREATE_NOTIFY_INFO CreateInfo)
 {
-	DbgPrint("CreateProcessNotifyRoutineEx");
+	LogInfo("CreateProcessNotifyRoutineEx");
 	CreateProcessNotifyRoutine(ParentId, ProcessId, CreateInfo!=NULL);
 }
 
@@ -385,7 +385,7 @@ HANDLE GetHandleForProcessID(IN HANDLE ProcessID)
 		r = RtlLookupElementGenericTable(InternalProcessList, &d);
 		if (r)
 		{
-			DbgPrint("Found a handle for PID %d (%x)", (int)(UINT_PTR)ProcessID, (int)(UINT_PTR)r->ProcessHandle);
+			LogInfo("Found a handle for PID %d (%x)", (int)(UINT_PTR)ProcessID, (int)(UINT_PTR)r->ProcessHandle);
 			return r->ProcessHandle; // r->ProcessHandle;
 		}	
 	}	

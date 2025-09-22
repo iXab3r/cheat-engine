@@ -271,7 +271,7 @@ Runs at passive mode
 	if (initializedvmm)
 		return; //already initialized
 
-	DbgPrint("First time run. Initializing vmm section");
+	LogInfo("First time run. Initializing vmm section");
 
 	PHYSICAL_ADDRESS LowAddress, HighAddress, SkipBytes;
 	LowAddress.QuadPart = 0;
@@ -280,7 +280,7 @@ Runs at passive mode
 
 	DBVMMDL = MmAllocatePagesForMdlEx(LowAddress, HighAddress, SkipBytes, 4 * 1024 * 1024, MmCached, MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS | MM_ALLOCATE_FULLY_REQUIRED);
 	if (!DBVMMDL) {
-		DbgPrint("Failure allocating the required 4MB\n");
+		LogInfo("Failure allocating the required 4MB\n");
 		return;
 	}
 
@@ -304,9 +304,9 @@ Runs at passive mode
 
 		vmmPA = (UINT_PTR)MmGetPhysicalAddress(vmm).QuadPart;
 
-		DbgPrint("Allocated memory at virtual address %p (physical address %I64x)\n", vmm, MmGetPhysicalAddress(vmm));
+		LogInfo("Allocated memory at virtual address %p (physical address %I64x)\n", vmm, MmGetPhysicalAddress(vmm));
 		vmmPA = MmGetMdlPfnArray(DBVMMDL)[0] << 12;
-		DbgPrint("(physical address %I64x)\n", vmmPA);
+		LogInfo("(physical address %I64x)\n", vmmPA);
 
 		RtlZeroMemory(vmm, 4 * 1024 * 1024); //initialize
 
@@ -341,7 +341,7 @@ Runs at passive mode
 
 			if (fsi.EndOfFile.QuadPart>4 * 1024 * 1024)
 			{
-				DbgPrint("File bigger than 4MB. Big retard detected\n");
+				LogInfo("File bigger than 4MB. Big retard detected\n");
 				return;
 			}
 
@@ -353,7 +353,7 @@ Runs at passive mode
 			{
 				if (ZwWaitForSingleObject(dbvmimghandle, FALSE, NULL) != STATUS_SUCCESS)
 				{
-					DbgPrint("Read failure\n");
+					LogInfo("Read failure\n");
 					return;
 				}
 			}
@@ -363,7 +363,7 @@ Runs at passive mode
 				DWORD vmmsize = fsi.EndOfFile.LowPart;// -(startsector * 512);
 
 				//now read the vmdisk into the allocated memory
-				DbgPrint("The startsector=%d (that's offset %d)\n", startsector, startsector * 512);
+				LogInfo("The startsector=%d (that's offset %d)\n", startsector, startsector * 512);
 
 				byteoffset.QuadPart = startsector * 512;
 				ReadFile = ZwReadFile(dbvmimghandle, NULL, NULL, NULL, &statusblock, vmm, vmmsize, &byteoffset, NULL);
@@ -372,7 +372,7 @@ Runs at passive mode
 
 				vmmsize = (vmmsize + 4096) & 0xfffffffffffff000ULL; //adjust the size internally to a page boundary (sure, there's some mem loss, but it's predicted, dbvm assumes first 10 pages are scratch pages)
 
-				DbgPrint("vmmsize=%x\n", vmmsize);
+				LogInfo("vmmsize=%x\n", vmmsize);
 
 				if (statusblock.Status == STATUS_SUCCESS)
 				{
@@ -400,7 +400,7 @@ Runs at passive mode
 
 
 					//blame MS for making this hard to read
-					DbgPrint("Setting up initial paging table for vmm\n");
+					LogInfo("Setting up initial paging table for vmm\n");
 
 					*(PUINT64)(&PageMapLevel4[0]) = MmGetPhysicalAddress(PageDirPtr).QuadPart;
 					PageMapLevel4[0].P = 1;
@@ -468,15 +468,15 @@ Runs at passive mode
 					NewGDTDescriptor.limit = 0x6f; //111
 					NewGDTDescriptor.base = 0x00400000 + (UINT64)GDTBase - (UINT64)vmm;
 
-					DbgPrint("&NewGDTDescriptor=%p, &NewGDTDescriptor.limit=%p, &NewGDTDescriptor.base=%p\n", &NewGDTDescriptor, &NewGDTDescriptor.limit, &NewGDTDescriptor.base);
-					DbgPrint("NewGDTDescriptor.limit=%x\n", NewGDTDescriptor.limit);
-					DbgPrint("NewGDTDescriptor.base=%p\n", NewGDTDescriptor.base);
+					LogInfo("&NewGDTDescriptor=%p, &NewGDTDescriptor.limit=%p, &NewGDTDescriptor.base=%p\n", &NewGDTDescriptor, &NewGDTDescriptor.limit, &NewGDTDescriptor.base);
+					LogInfo("NewGDTDescriptor.limit=%x\n", NewGDTDescriptor.limit);
+					LogInfo("NewGDTDescriptor.base=%p\n", NewGDTDescriptor.base);
 
 					NewGDTDescriptorVA = (UINT_PTR)&NewGDTDescriptor;
 
 
 					maxPA.QuadPart = 0x003fffffULL; //allocate 4k at the lower 4MB
-					DbgPrint("Before enterVMM2 alloc: maxPA=%I64x\n", maxPA.QuadPart);
+					LogInfo("Before enterVMM2 alloc: maxPA=%I64x\n", maxPA.QuadPart);
 
 					enterVMM2 = MmAllocateContiguousMemory(4096, maxPA);
 					if (enterVMM2)
@@ -487,25 +487,25 @@ Runs at passive mode
 						enterVMM2MDL = IoAllocateMdl(enterVMM2, 4096, FALSE, FALSE, NULL);
 						MmProbeAndLockPages(enterVMM2MDL, KernelMode, IoReadAccess);
 
-						DbgPrint("enterVMM is located at %p (%I64x)\n", enterVMM, MmGetPhysicalAddress(enterVMM).QuadPart);
-						DbgPrint("enterVMM2 is located at %p (%I64x)\n", enterVMM2, MmGetPhysicalAddress(enterVMM2).QuadPart);
+						LogInfo("enterVMM is located at %p (%I64x)\n", enterVMM, MmGetPhysicalAddress(enterVMM).QuadPart);
+						LogInfo("enterVMM2 is located at %p (%I64x)\n", enterVMM2, MmGetPhysicalAddress(enterVMM2).QuadPart);
 
 
-						DbgPrint("Copying function till end\n");
+						LogInfo("Copying function till end\n");
 						//copy memory
 
 						i = 0;
 						while ((i<4096) && ((original[i] != 0xce) || (original[i + 1] != 0xce) || (original[i + 2] != 0xce) || (original[i + 3] != 0xce) || (original[i + 4] != 0xce)))
 							i++;
 
-						DbgPrint("size is %d", i);
+						LogInfo("size is %d", i);
 
 						RtlCopyMemory(enterVMM2, original, i);
-						DbgPrint("Copy done\n");
+						LogInfo("Copy done\n");
 					}
 					else
 					{
-						DbgPrint("Failure allocating enterVMM2\n");
+						LogInfo("Failure allocating enterVMM2\n");
 						return;
 					}
 
@@ -516,11 +516,11 @@ Runs at passive mode
 					//easiest way, make every page point to enterVMM2				
 
 					//allocate 4 pages
-					DbgPrint("Allocating memory for the temp pagedir\n");
+					LogInfo("Allocating memory for the temp pagedir\n");
 					TemporaryPagingSetup = ExAllocatePool(PagedPool, 4 * 4096);
 					if (TemporaryPagingSetup == NULL)
 					{
-						DbgPrint("TemporaryPagingSetup==NULL!!!\n");
+						LogInfo("TemporaryPagingSetup==NULL!!!\n");
 						return;
 					}
 
@@ -530,15 +530,15 @@ Runs at passive mode
 
 
 					RtlZeroMemory(TemporaryPagingSetup, 4096 * 4);
-					DbgPrint("TemporaryPagingSetup is located at %p (%I64x)\n", TemporaryPagingSetup, MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart);
+					LogInfo("TemporaryPagingSetup is located at %p (%I64x)\n", TemporaryPagingSetup, MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart);
 
 
 					TemporaryPagingSetupPA = MmGetMdlPfnArray(TemporaryPagingSetupMDL)[0] << 12; // (UINT_PTR)MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart;
 
 					enterVMM2PA = MmGetMdlPfnArray(enterVMM2MDL)[0] << 12;
-					DbgPrint("TemporaryPagingSetupPA = (%I64x) (Should be %I64x)\n", (UINT64)TemporaryPagingSetupPA, (UINT64)MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart);
+					LogInfo("TemporaryPagingSetupPA = (%I64x) (Should be %I64x)\n", (UINT64)TemporaryPagingSetupPA, (UINT64)MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart);
 #ifdef AMD64			
-					DbgPrint("Setting up temporary paging setup for x64\n");
+					LogInfo("Setting up temporary paging setup for x64\n");
 
 
 					{
@@ -547,7 +547,7 @@ Runs at passive mode
 						PUINT64	PageDir = (PUINT64)((UINT_PTR)TemporaryPagingSetup + 2 * 4096);
 						PUINT64	PageTable = (PUINT64)((UINT_PTR)TemporaryPagingSetup + 3 * 4096);
 
-						DbgPrint("PAE paging\n");
+						LogInfo("PAE paging\n");
 						for (i = 0; i<512; i++)
 						{
 							PML4Table[i] = MmGetPhysicalAddress(PageDirPtr).QuadPart;
@@ -566,14 +566,14 @@ Runs at passive mode
 					}
 
 #else
-					DbgPrint("Setting up temporary paging setup\n");
+					LogInfo("Setting up temporary paging setup\n");
 					if (PTESize==8) //PAE paging
 					{
 						PUINT64	PageDirPtr=(PUINT64)TemporaryPagingSetup;						
 						PUINT64	PageDir=(PUINT64)((UINT_PTR)TemporaryPagingSetup+4096);
 						PUINT64	PageTable=(PUINT64)((UINT_PTR)TemporaryPagingSetup+2*4096);
 
-						DbgPrint("PAE paging\n");
+						LogInfo("PAE paging\n");
 						for (i=0; i<512; i++)
 						{
 							PageDirPtr[i]=MmGetPhysicalAddress(PageDir).QuadPart;
@@ -598,7 +598,7 @@ Runs at passive mode
 						//normal(old) 4 byte page entries
 						PDWORD PageDir=(PDWORD)TemporaryPagingSetup;
 						PDWORD PageTable=(PDWORD)((DWORD)TemporaryPagingSetup+4096);
-						DbgPrint("Normal paging\n");
+						LogInfo("Normal paging\n");
 						for (i=0; i<1024; i++)
 						{
 							PageDir[i]=MmGetPhysicalAddress(PageTable).LowPart;
@@ -614,7 +614,7 @@ Runs at passive mode
 					}
 #endif
 
-					DbgPrint("Temp paging has been setup\n");
+					LogInfo("Temp paging has been setup\n");
 
 
 					//enterVMM2PA = (UINT_PTR)MmGetPhysicalAddress(enterVMM2).QuadPart;
@@ -629,9 +629,9 @@ Runs at passive mode
 					RtlZeroMemory(originalstate, 4096);
 					originalstatePA = MmGetMdlPfnArray(originalstateMDL)[0] << 12; //(UINT_PTR)MmGetPhysicalAddress(originalstate).QuadPart;					
 
-					DbgPrint("enterVMM2PA=%llx\n", enterVMM2PA);
-					DbgPrint("originalstatePA=%llx\n", originalstatePA);
-					DbgPrint("originalstatePA=%llx\n", (UINT_PTR)MmGetPhysicalAddress(originalstate).QuadPart);
+					LogInfo("enterVMM2PA=%llx\n", enterVMM2PA);
+					LogInfo("originalstatePA=%llx\n", originalstatePA);
+					LogInfo("originalstatePA=%llx\n", (UINT_PTR)MmGetPhysicalAddress(originalstate).QuadPart);
 
 					//setup init vars	
 					initvars->loadedOS = originalstatePA;
@@ -643,12 +643,12 @@ Runs at passive mode
 					PMDL contiguousMDL = MmAllocatePagesForMdlEx(LowAddress, HighAddress, SkipBytes, 8 * 4096, MmCached, MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS | MM_ALLOCATE_FULLY_REQUIRED);
 					if (contiguousMDL) {
 						initvars->contiguousmemory = MmGetMdlPfnArray(contiguousMDL)[0] << 12;
-						DbgPrint("contiguous PA =%llx\n", initvars->contiguousmemory);
+						LogInfo("contiguous PA =%llx\n", initvars->contiguousmemory);
 						initvars->contiguousmemorysize = 8;
 						ExFreePool(contiguousMDL);
 					}
 					else
-						DbgPrint("Failed allocating 32KB of contiguous memory");
+						LogInfo("Failed allocating 32KB of contiguous memory");
 
 
 					initializedvmm = TRUE;
@@ -660,18 +660,18 @@ Runs at passive mode
 			ZwClose(dbvmimghandle);
 
 
-			DbgPrint("Opened and processed: %S\n", filename.Buffer);
+			LogInfo("Opened and processed: %S\n", filename.Buffer);
 		}
 		else
 		{
-			DbgPrint("Failure opening the file. Status=%x  (filename=%S)\n", OpenedFile, filename.Buffer);
+			LogInfo("Failure opening the file. Status=%x  (filename=%S)\n", OpenedFile, filename.Buffer);
 		}
 		//fill in some specific memory regions
 		MmUnmapLockedPages(vmm, DBVMMDL);
 	}
 	else
 	{
-		DbgPrint("Failure allocating the required 4MB\n");
+		LogInfo("Failure allocating the required 4MB\n");
 	}
 	ExFreePool(DBVMMDL);
 }
@@ -692,7 +692,7 @@ void vmxoffload(void)
 	}
 	__except (1)
 	{
-		DbgPrint("No debugger\n");
+		LogInfo("No debugger\n");
 	}*/
 	
 	
@@ -702,30 +702,30 @@ void vmxoffload(void)
 	boundary.QuadPart=0x00800000ULL; //8 mb boundaries
 
 
-	DbgPrint("vmxoffload\n");
+	LogInfo("vmxoffload\n");
 
 
 
-	DbgPrint("initializedvmm=%d\n", initializedvmm); 
+	LogInfo("initializedvmm=%d\n", initializedvmm); 
 	if (initializedvmm)
 	{
-		DbgPrint("cpunr=%d\n",cpunr());
+		LogInfo("cpunr=%d\n",cpunr());
 		
-		DbgPrint("Storing original state\n");
+		LogInfo("Storing original state\n");
 		originalstate->cpucount=getCpuCount();
-		DbgPrint("originalstate->cpucount=%d",originalstate->cpucount);
+		LogInfo("originalstate->cpucount=%d",originalstate->cpucount);
 
 
 		originalstate->originalEFER=readMSR(0xc0000080); //amd prefers this over an LME
 
 		originalstate->originalLME=(int)(((DWORD)(readMSR(0xc0000080)) >> 8) & 1);		
-		DbgPrint("originalstate->originalLME=%d",originalstate->originalLME);
+		LogInfo("originalstate->originalLME=%d",originalstate->originalLME);
 
 		
 		originalstate->cr0=(UINT_PTR)getCR0();
 		
 
-		DbgPrint("originalstate->cr0=%I64x",originalstate->cr0);
+		LogInfo("originalstate->cr0=%I64x",originalstate->cr0);
 
 		/*
 		{
@@ -734,13 +734,13 @@ void vmxoffload(void)
 			x=&originalstate->cr0;
 			for (xxx=0; xxx<8; xxx++)
 			{
-				DbgPrint("%x ",x[xxx]);
+				LogInfo("%x ",x[xxx]);
 			}
 		}
 		*/
 
 		originalstate->cr2=(UINT_PTR)getCR2();
-		DbgPrint("originalstate->cr2=%I64x",originalstate->cr2);
+		LogInfo("originalstate->cr2=%I64x",originalstate->cr2);
 		/*
 		{
 			int xxx;
@@ -748,51 +748,51 @@ void vmxoffload(void)
 			x=&originalstate->cr2;
 			for (xxx=0; xxx<8; xxx++)
 			{
-				DbgPrint("%x ",x[xxx]);
+				LogInfo("%x ",x[xxx]);
 			}
 		}*/
 
 		originalstate->cr3=(UINT_PTR)getCR3();
-		//DbgPrint("originalstate->cr3=%I64x",originalstate->cr3);
+		//LogInfo("originalstate->cr3=%I64x",originalstate->cr3);
 
 		originalstate->cr4=(UINT_PTR)getCR4();
-		//DbgPrint("originalstate->cr4=%I64x",originalstate->cr4);
+		//LogInfo("originalstate->cr4=%I64x",originalstate->cr4);
 
 		originalstate->ss=getSS();
 		originalstate->ss_AccessRights = getAccessRights(originalstate->ss);
 		originalstate->ss_Limit = getSegmentLimit(originalstate->ss);
 
-		//DbgPrint("originalstate->ss=%I64x",originalstate->ss);
+		//LogInfo("originalstate->ss=%I64x",originalstate->ss);
 		originalstate->cs=getCS();
 		originalstate->cs_AccessRights = getAccessRights(originalstate->cs);
 		originalstate->cs_Limit = getSegmentLimit(originalstate->cs);
-		//DbgPrint("originalstate->cs=%I64x",originalstate->cs);
+		//LogInfo("originalstate->cs=%I64x",originalstate->cs);
 		originalstate->ds=getDS();
 		originalstate->ds_AccessRights = getAccessRights(originalstate->ds);
 		originalstate->ds_Limit = getSegmentLimit(originalstate->ds);
-		//DbgPrint("originalstate->ds=%I64x",originalstate->ds);
+		//LogInfo("originalstate->ds=%I64x",originalstate->ds);
 		originalstate->es=getES();
 		originalstate->es_AccessRights = getAccessRights(originalstate->es);
 		originalstate->es_Limit = getSegmentLimit(originalstate->es);
-		//DbgPrint("originalstate->es=%I64x",originalstate->es);
+		//LogInfo("originalstate->es=%I64x",originalstate->es);
 		originalstate->fs=getFS();
 		originalstate->fs_AccessRights = getAccessRights(originalstate->fs);
 		originalstate->fs_Limit = getSegmentLimit(originalstate->fs);
-		//DbgPrint("originalstate->fs=%I64x",originalstate->fs);
+		//LogInfo("originalstate->fs=%I64x",originalstate->fs);
 		originalstate->gs=getGS();
 		originalstate->gs_AccessRights = getAccessRights(originalstate->gs);
 		originalstate->gs_Limit = getSegmentLimit(originalstate->gs);
-		//DbgPrint("originalstate->gs=%I64x",originalstate->gs);
+		//LogInfo("originalstate->gs=%I64x",originalstate->gs);
 		originalstate->ldt=GetLDT();
-		//DbgPrint("originalstate->ldt=%I64x",originalstate->ldt);
+		//LogInfo("originalstate->ldt=%I64x",originalstate->ldt);
 		originalstate->tr=GetTR();
-		//DbgPrint("originalstate->tr=%I64x",originalstate->tr);		
+		//LogInfo("originalstate->tr=%I64x",originalstate->tr);		
 
 
 		originalstate->fsbase=readMSR(0xc0000100);
 		originalstate->gsbase=readMSR(0xc0000101);
 
-		//DbgPrint("originalstate->fsbase=%I64x originalstate->gsbase=%I64x\n", originalstate->fsbase, originalstate->gsbase);
+		//LogInfo("originalstate->fsbase=%I64x originalstate->gsbase=%I64x\n", originalstate->fsbase, originalstate->gsbase);
 
 
 		originalstate->dr7=getDR7();
@@ -804,15 +804,15 @@ void vmxoffload(void)
 		originalstate->gdtbase=(ULONG_PTR)gdt.vector;
 		originalstate->gdtlimit=gdt.wLimit;
 
-		//DbgPrint("originalstate->gdtbase=%I64x",originalstate->gdtbase);
-		//DbgPrint("originalstate->gdtlimit=%I64x",originalstate->gdtlimit);
+		//LogInfo("originalstate->gdtbase=%I64x",originalstate->gdtbase);
+		//LogInfo("originalstate->gdtlimit=%I64x",originalstate->gdtlimit);
 
 		GetIDT(&idt);
 		originalstate->idtbase=(ULONG_PTR)idt.vector;
 		originalstate->idtlimit=idt.wLimit;
 
-		//DbgPrint("originalstate->idtbase=%I64x",originalstate->idtbase);
-		//DbgPrint("originalstate->idtlimit=%I64x",originalstate->idtlimit);
+		//LogInfo("originalstate->idtbase=%I64x",originalstate->idtbase);
+		//LogInfo("originalstate->idtlimit=%I64x",originalstate->idtlimit);
 		
 		
 		eflags=getEflags();		
@@ -820,39 +820,39 @@ void vmxoffload(void)
 		originalstate->rflags=*(PUINT_PTR)&eflags;
 
 		originalstate->rsp=getRSP();
-		//DbgPrint("originalstate->rsp=%I64x",originalstate->rsp);
+		//LogInfo("originalstate->rsp=%I64x",originalstate->rsp);
 		originalstate->rbp=getRBP();
-		//DbgPrint("originalstate->rbp=%I64x",originalstate->rbp);
+		//LogInfo("originalstate->rbp=%I64x",originalstate->rbp);
 
 		originalstate->rax=getRAX();
-		//DbgPrint("originalstate->rax=%I64x",originalstate->rax);
+		//LogInfo("originalstate->rax=%I64x",originalstate->rax);
 		originalstate->rbx=getRBX();
-		//DbgPrint("originalstate->rbx=%I64x",originalstate->rbx);
+		//LogInfo("originalstate->rbx=%I64x",originalstate->rbx);
 		originalstate->rcx=getRCX();
-		//DbgPrint("originalstate->rcx=%I64x",originalstate->rcx);
+		//LogInfo("originalstate->rcx=%I64x",originalstate->rcx);
 		originalstate->rdx=getRDX();
-		//DbgPrint("originalstate->rdx=%I64x",originalstate->rdx);
+		//LogInfo("originalstate->rdx=%I64x",originalstate->rdx);
 		originalstate->rsi=getRSI();
-		//DbgPrint("originalstate->rsi=%I64x",originalstate->rsi);
+		//LogInfo("originalstate->rsi=%I64x",originalstate->rsi);
 		originalstate->rdi=getRDI();
-		//DbgPrint("originalstate->rdi=%I64x",originalstate->rdi);
+		//LogInfo("originalstate->rdi=%I64x",originalstate->rdi);
 #ifdef AMD64
 		originalstate->r8=getR8();
-		//DbgPrint("originalstate->r8=%I64x",originalstate->r8);
+		//LogInfo("originalstate->r8=%I64x",originalstate->r8);
 		originalstate->r9=getR9();
-		//DbgPrint("originalstate->r9=%I64x",originalstate->r9);
+		//LogInfo("originalstate->r9=%I64x",originalstate->r9);
 		originalstate->r10=getR10();
-		//DbgPrint("originalstate->r10=%I64x",originalstate->r10);
+		//LogInfo("originalstate->r10=%I64x",originalstate->r10);
 		originalstate->r11=getR11();
-		//DbgPrint("originalstate->r11=%I64x",originalstate->r11);
+		//LogInfo("originalstate->r11=%I64x",originalstate->r11);
 		originalstate->r12=getR12();
-		//DbgPrint("originalstate->r12=%I64x",originalstate->r12);
+		//LogInfo("originalstate->r12=%I64x",originalstate->r12);
 		originalstate->r13=getR13();
-		//DbgPrint("originalstate->r13=%I64x",originalstate->r13);
+		//LogInfo("originalstate->r13=%I64x",originalstate->r13);
 		originalstate->r14=getR14();
-		//DbgPrint("originalstate->r14=%I64x",originalstate->r14);
+		//LogInfo("originalstate->r14=%I64x",originalstate->r14);
 		originalstate->r15=getR15();
-		//DbgPrint("originalstate->r15=%I64x",originalstate->r15);
+		//LogInfo("originalstate->r15=%I64x",originalstate->r15);
 #endif
 		
 
@@ -861,9 +861,9 @@ void vmxoffload(void)
 		originalstate->rsp-=8; //adjust rsp for the "call entervmmprologue"
  		originalstate->rip=(UINT_PTR)enterVMMEpilogue; //enterVMMEpilogue is an address inside the entervmmprologue function
 
-		//DbgPrint("originalstate->rip=%llx",originalstate->rip);
+		//LogInfo("originalstate->rip=%llx",originalstate->rip);
 
-		//DbgPrint("Calling entervmm2. (Originalstate=%p (%llx))\n",originalstate,originalstatePA);
+		//LogInfo("Calling entervmm2. (Originalstate=%p (%llx))\n",originalstate,originalstatePA);
 
 
 		
@@ -874,9 +874,9 @@ void vmxoffload(void)
 		
 		enableInterrupts();
 
-		//DbgPrint("Returned from enterVMMPrologue\n");
+		//LogInfo("Returned from enterVMMPrologue\n");
 
-		//DbgPrint("cpunr=%d\n",cpunr());
+		//LogInfo("cpunr=%d\n",cpunr());
 
 	
 		
@@ -888,7 +888,7 @@ void vmxoffload(void)
 
 
 		
-		//DbgPrint("cpunr=%d\n",cpunr());
+		//LogInfo("cpunr=%d\n",cpunr());
 #else
 
 		
@@ -950,7 +950,7 @@ enterVMMEpilogue:
 		//KeLowerIrql(oldirql);
 		
 #endif
-		//DbgPrint("Returning\n");
+		//LogInfo("Returning\n");
 
 		return;
 
@@ -967,7 +967,7 @@ void vmxoffload_override(CCHAR cpunr, PKDEFERRED_ROUTINE Dpc, PVOID DeferredCont
 	//allocate 64KB of extra memory for this(and every other) cpu's DBVM
 	PHYSICAL_ADDRESS LowAddress, HighAddress, SkipBytes;
 	PMDL mdl;
-	DbgPrint("vmxoffload_override\n");
+	LogInfo("vmxoffload_override\n");
 	LowAddress.QuadPart = 0;
 	HighAddress.QuadPart = 0xffffffffffffffffI64;
 	SkipBytes.QuadPart = 0;
@@ -980,11 +980,11 @@ void vmxoffload_override(CCHAR cpunr, PKDEFERRED_ROUTINE Dpc, PVOID DeferredCont
 		int i;
 		PFN_NUMBER *pfnlist;
 
-		DbgPrint("vmxoffload_override: mi=%p\n", mi);
+		LogInfo("vmxoffload_override: mi=%p\n", mi);
 		
 		mi->List = ExAllocatePool(NonPagedPool, sizeof(UINT64) * 16);
 
-		DbgPrint("vmxoffload_override: mi->list=%p\n", mi->List);
+		LogInfo("vmxoffload_override: mi->list=%p\n", mi->List);
 
 		pfnlist = MmGetMdlPfnArray(mdl);
 		
@@ -1012,7 +1012,7 @@ __in_opt PVOID SystemArgument2
 )
 {
 	int c = cpunr();
-	DbgPrint("vmxoffload_dpc: CPU %d\n", c);
+	LogInfo("vmxoffload_dpc: CPU %d\n", c);
 	KeAcquireSpinLockAtDpcLevel(&LoadedOSSpinLock);
 	vmxoffload();
 
@@ -1021,10 +1021,10 @@ __in_opt PVOID SystemArgument2
 	{
 		int x;
 		PDBVMOffloadMemInfo mi = (PDBVMOffloadMemInfo)SystemArgument1;
-		DbgPrint("mi->List=%p mi->Count=%d\n", mi->List, mi->Count);
+		LogInfo("mi->List=%p mi->Count=%d\n", mi->List, mi->Count);
 
 		x=vmx_add_memory(mi->List, mi->Count);
-		DbgPrint("vmx_add_memory returned %x\n", x);
+		LogInfo("vmx_add_memory returned %x\n", x);
 
 		if (mi->List)
 			ExFreePool(mi->List);
@@ -1032,6 +1032,6 @@ __in_opt PVOID SystemArgument2
 		ExFreePool(mi);
 	}
 	else
-		DbgPrint("Error: SystemArgument1=NULL\n");
+		LogInfo("Error: SystemArgument1=NULL\n");
 	KeReleaseSpinLockFromDpcLevel(&LoadedOSSpinLock);
 }
