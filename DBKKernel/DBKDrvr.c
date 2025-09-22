@@ -194,9 +194,12 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 	--*/
 {
 
-	// Register TraceLogging provider early
-	DBKTraceLoggingRegister();
-
+	NTSTATUS tls = DBKTraceLoggingRegister();
+	if (NT_SUCCESS(tls))
+	{
+		TraceLoggingWrite(g_DBKProvider, "ProviderRegistered", TraceLoggingLevel(TRACE_LEVEL_INFORMATION));
+	}
+	
 	NTSTATUS        ntStatus;
 	PVOID           BufDriverString = NULL, BufDriverStringFormat = NULL, BufProcessEventString = NULL, BufThreadEventString = NULL;
 	UNICODE_STRING  uszDriverString;

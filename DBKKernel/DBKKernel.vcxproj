@@ -432,6 +432,9 @@ makecab /f "$(ProjectDir)\dea64.ddf"
   <ItemGroup>
     <None Include="dea64.ddf" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="PERFVIEW.txt" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

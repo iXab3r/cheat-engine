@@ -1,8 +1,42 @@
 #pragma warning( disable: 4100 4103 4146 4213)
 
 #include "ntifs.h"
-#include <windef.h>
 #include <excpt.h>
+#include <ntstrsafe.h>
+#include <intrin.h>
+
+#ifndef PROCESS_VM_OPERATION
+#define PROCESS_VM_OPERATION 0x0008
+#endif
+#ifndef PROCESS_VM_READ
+#define PROCESS_VM_READ 0x0010
+#endif
+#ifndef PROCESS_VM_WRITE
+#define PROCESS_VM_WRITE 0x0020
+#endif
+
+// Forward declarations in case some WDK variants hide these prototypes
+#ifndef __DECL_MM_PROT_COPY
+#define __DECL_MM_PROT_COPY
+NTSYSAPI NTSTATUS NTAPI ZwProtectVirtualMemory(
+    HANDLE ProcessHandle,
+    PVOID *BaseAddress,
+    PSIZE_T RegionSize,
+    ULONG NewProtect,
+    PULONG OldProtect
+    );
+
+NTSYSAPI NTSTATUS NTAPI MmCopyVirtualMemory(
+    PEPROCESS FromProcess,
+    const VOID* FromAddress,
+    PEPROCESS ToProcess,
+    PVOID ToAddress,
+    SIZE_T BufferSize,
+    KPROCESSOR_MODE PreviousMode,
+    PSIZE_T NumberOfBytesCopied
+    );
+#endif
+
 #ifdef CETC
 #include "tdiwrapper.h"
 #include "kfiles.h"
@@ -134,6 +168,12 @@ void VirtualAddressToPageEntries64(QWORD address, PPDPTE_PAE *pml4entry, PPDPTE_
 #endif
 }
 
+static __forceinline BOOLEAN IsUserAddress(_In_ PVOID Address)
+{
+	return Address <= MmHighestUserAddress;
+}
+
+
 BOOLEAN IsAddressSafe(UINT_PTR StartAddress)
 {
 	#ifdef AMD64
@@ -262,28 +302,145 @@ UINT_PTR getPEThread(UINT_PTR threadid)
 		ObDereferenceObject(selectedthread);
 	}
 
-	return result;
+ return result;
 }
 
-BOOLEAN WriteProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Size, PVOID Buffer)
+#include <ntifs.h>
+#include <ntstrsafe.h>
+#include <excpt.h>
+
+// Temporarily make the user region RW in the target process, write, then restore.
+NTSTATUS WriteUserRwxOnce(
+    _In_  PEPROCESS TargetProcess,
+    _In_  PVOID     TargetAddress,
+    _In_  SIZE_T    Size,
+    _In_reads_bytes_(Size) PVOID SourceBuffer)
 {
-	PEPROCESS selectedprocess=PEProcess;
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
+    HANDLE   hProc  = NULL;
+    SIZE_T   wrote  = 0;
+
+    // Pre-conditions and context (cheap and useful)
+    const KIRQL irql = KeGetCurrentIrql();
+    const BOOLEAN isUser = IsUserAddress(TargetAddress);
+
+    LogTrace("[MEM-WURWX] Writing proc=%p addr=%p size=%Iu src=%p isUser=%d irql=%u",
+             TargetProcess, TargetAddress, Size, SourceBuffer, isUser, (unsigned)irql);
+
+    if (!TargetProcess || !TargetAddress || !SourceBuffer || Size == 0) {
+        LogWarn("[MEM-WURWX] Invalid args: TP=%p Addr=%p Size=%Iu Src=%p",
+                TargetProcess, TargetAddress, Size, SourceBuffer);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!isUser) {
+        LogWarn("[MEM-WURWX] TargetAddress is not user-space (addr=%p). This helper is user-only.", TargetAddress);
+        return STATUS_INVALID_ADDRESS;
+    }
+
+    if (irql != PASSIVE_LEVEL) {
+        LogWarn("[MEM-WURWX] Must run at PASSIVE_LEVEL (irql=%u)", (unsigned)irql);
+        return STATUS_INVALID_DEVICE_STATE;
+    }
+
+    // Open a kernel handle for ZwProtectVirtualMemory (avoids PID races; no attach needed)
+    status = ObOpenObjectByPointer(TargetProcess,
+                                   OBJ_KERNEL_HANDLE,
+                                   NULL,
+                                   PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ,
+                                   *PsProcessType,
+                                   KernelMode,
+                                   &hProc);
+    if (!NT_SUCCESS(status)) {
+        LogError("[MEM-WURWX] ObOpenObjectByPointer failed: 0x%08X", status);
+        return status;
+    }
+
+    __try
+    {
+        // Compute page-aligned region to cover [addr, addr+size)
+        PVOID  base   = (PVOID)((ULONG_PTR)TargetAddress & ~(PAGE_SIZE - 1));
+        SIZE_T delta  = (ULONG_PTR)TargetAddress - (ULONG_PTR)base;
+        SIZE_T span   = delta + Size;
+        SIZE_T protSz = (span + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+        LogTrace("[MEM-WURWX] Protect align: base=%p delta=0x%Ix span=0x%Ix protSz=0x%Ix",
+                 base, (SIZE_T)delta, (SIZE_T)span, (SIZE_T)protSz);
+
+        ULONG oldProt = 0;
+
+        __try
+        {
+            // Change to RW
+            LogTrace("[MEM-WURWX] ZwProtectVirtualMemory -> PAGE_READWRITE");
+            status = ZwProtectVirtualMemory(hProc, &base, &protSz, PAGE_READWRITE, &oldProt);
+            LogTrace("[MEM-WURWX] ZwProtectVirtualMemory(RW) -> 0x%08X oldProt=0x%X", status, oldProt);
+
+            if (!NT_SUCCESS(status)) {
+                __leave; 
+            }
+
+            wrote = 0;
+            LogTrace("[MEM-WURWX] MmCopyVirtualMemory: %Iu bytes to %p", Size, TargetAddress);
+            status = MmCopyVirtualMemory(
+                PsGetCurrentProcess(),  
+                SourceBuffer,
+                TargetProcess,          
+                TargetAddress,
+                Size,
+                KernelMode,            
+                &wrote);
+            LogTrace("[MEM-WURWX] MmCopyVirtualMemory -> 0x%08X, wrote=%Iu", status, wrote);
+
+            if (NT_SUCCESS(status) && wrote != Size) {
+                status = STATUS_PARTIAL_COPY;
+                LogWarn("[MEM-WURWX] Partial copy: wrote=%Iu of %Iu", wrote, Size);
+            }
+        }
+        __finally
+        {
+            // Best-effort restore original protection if we changed it
+            if (oldProt != 0) {
+                // base/protSz may be updated by the previous ZwProtectVirtualMemory, so reuse them
+                NTSTATUS st2;
+                LogTrace("[MEM-WURWX] ZwProtectVirtualMemory -> restore oldProt=0x%X", oldProt);
+                st2 = ZwProtectVirtualMemory(hProc, &base, &protSz, oldProt, &oldProt);
+                LogTrace("[MEM-WURWX] ZwProtectVirtualMemory(restore) -> 0x%08X", st2);
+            }
+        }
+    }
+    __except ( WpmSehLogFilter(GetExceptionInformation()) )
+    {
+        status = GetExceptionCode();
+        LogError("[MEM-WURWX] SEH: exception -> 0x%08X (see SEH event for details)", status);
+    }
+
+    if (hProc) {
+        ZwClose(hProc);
+        hProc = NULL;
+    }
+
+    LogTrace("[MEM-WURWX] Exit: status=0x%08X", status);
+    return status;
+}
+
+BOOLEAN WriteProcessMemory(DWORD pid, PEPROCESS pe_process, PVOID targetPtr, DWORD size, PVOID bufferPtr) {
+	PEPROCESS selectedprocess=pe_process;
 	KAPC_STATE apc_state;
 	NTSTATUS ntStatus=STATUS_UNSUCCESSFUL;
 		
-	LogTrace("[WPM] Writing %db @ 0x%llx in PID %d", Size, Address, PID);
+	LogTrace("[MEM-WPM] Writing %db @ 0x%llx in PID %d", size, targetPtr, pid);
 	if (selectedprocess==NULL)
 	{
-		LogTrace("[WPM] Getting PEPROCESS for %d", PID);
-        if (!NT_SUCCESS(PsLookupProcessByProcessId((PVOID)(UINT_PTR)PID,&selectedprocess)))
+		LogTrace("[MEM-WPM] Getting PEPROCESS for %d", pid);
+        if (!NT_SUCCESS(PsLookupProcessByProcessId((PVOID)(UINT_PTR)pid,&selectedprocess)))
         {
-		   LogWarn("[WPM] Could not get PEPROCESS for %d", PID);
+		   LogWarn("[MEM-WPM] Could not get PEPROCESS for %d", pid);
 		   return FALSE;
         }
-		LogTrace("[WPM] Retrieved peprocess");  
+		LogTrace("[MEM-WPM] Retrieved peprocess");  
 	}
 
-	//selectedprocess now holds a valid peprocess value
 	__try
 	{
 		RtlZeroMemory(&apc_state,sizeof(apc_state));					
@@ -292,78 +449,48 @@ BOOLEAN WriteProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Siz
 
         __try
         {
-	        LogTrace("[WPM] Checking safety of memory @ 0x%llx", Address);
-			if (IsAddressSafe((UINT_PTR)Address) && IsAddressSafe((UINT_PTR)Address+Size-1))
+	        LogTrace("[MEM-WPM] Checking safety of memory @ 0x%llx", targetPtr);
+			if (IsAddressSafe((UINT_PTR)targetPtr) && IsAddressSafe((UINT_PTR)targetPtr+size-1))
 			{			
 				BOOL disabledWP = FALSE;
+				char* target = targetPtr;
+				char* source = bufferPtr;
 
-				char* target = Address;
-				char* source = Buffer;
-
-				LogTrace("[WPM] Flags state: loadedByDBVM=%d, KernelWritesIgnoreWP=%d",loadedbydbvm, KernelWritesIgnoreWP);
-				if (loadedbydbvm || KernelWritesIgnoreWP)  //add a extra security around it as the PF will not be handled
+				LogTrace("[MEM-WPM] Flags state: loadedByDBVM=%d, KernelWritesIgnoreWP=%d",loadedbydbvm, KernelWritesIgnoreWP);
+				if (loadedbydbvm)
 				{
 					disableInterrupts();
-
-					if (loadedbydbvm)
-					{
-						vmx_disable_dataPageFaults();
-					}
-
-					if (KernelWritesIgnoreWP)
-					{
-						LogTrace("[WPM] Disabling CR0.WP");
-						setCR0(getCR0() & (~(1 << 16))); //disable the WP bit					
-						disabledWP = TRUE;							
-						LogTrace("[WPM] Disabled CR0.WP");
-					}
+					vmx_disable_dataPageFaults();
 				}
-
 				
-				if ((!loadedbydbvm) && ((KernelWritesIgnoreWP) || ((UINT_PTR)target >= 0x8000000000000000ULL)))
+				if (KernelWritesIgnoreWP)
 				{
-					LogTrace("[WPM] Writing without exceptions");
-					unsigned int i = NoExceptions_CopyMemory(target, source, Size);
-					if (i != (int)Size)
-					{
-						ntStatus = STATUS_UNSUCCESSFUL;
-					}
-					else
-					{
-						ntStatus = STATUS_SUCCESS;
-					}					
+					LogTrace("[MEM-WPM] Writing to bypass WP safely");
+					ntStatus = WriteUserRwxOnce(selectedprocess, target, size, source);
+				}
+				else if (!loadedbydbvm && ((UINT_PTR)target >= 0x8000000000000000ULL))
+				{
+					LogTrace("[MEM-WPM] Writing kernel-space without exceptions");
+					unsigned int i = NoExceptions_CopyMemory(target, source, size);
+					ntStatus = (i == (int)size) ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL;
 				}
 				else
 				{
-					LogTrace("[WPM] Writing using RtlCopyMemory");
-					RtlCopyMemory(target, source, Size);
+					LogTrace("[MEM-WPM] Writing using RtlCopyMemory");
+					RtlCopyMemory(target, source, size);
 					ntStatus = STATUS_SUCCESS;
-					LogTrace("[WPM] Wrote using RtlCopyMemory successfully");
+					LogTrace("[MEM-WPM] Wrote using RtlCopyMemory successfully");
 				}
-				   
-				if (loadedbydbvm || disabledWP)
+				
+				if (loadedbydbvm)
 				{
-					UINT_PTR lastError=0;
-
-					if (disabledWP)
-					{						
-						LogTrace("[WPM] Enabling CR0.WP");
-						setCR0(getCR0() | (1 << 16));
-						LogTrace("[WPM] Enabled CR0.WP");
-					}
-
-					if (loadedbydbvm)
-					{
-						lastError = vmx_getLastSkippedPageFault();
-						vmx_enable_dataPageFaults();
-					}
-
+					UINT_PTR lastError = vmx_getLastSkippedPageFault();
+					vmx_enable_dataPageFaults();
 					enableInterrupts();
-
 					if (lastError)
 					{
-						LogError("[WPM] WPM failed, lastError=%llu", lastError);
-						ntStatus=STATUS_UNSUCCESSFUL;
+						LogError("[MEM-WPM] WPM failed, lastError=%llu", lastError);
+						ntStatus = STATUS_UNSUCCESSFUL;
 					}
 				}
 			}
@@ -374,11 +501,11 @@ BOOLEAN WriteProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Siz
 		}
 	}			
 	__except ( WpmSehLogFilter(GetExceptionInformation()) ) {
-		LogError("[WPM] Error while writing");   // optional extra message
+		LogError("[MEM-WPM] Error while writing");   // optional extra message
 		ntStatus = STATUS_UNSUCCESSFUL;
 	}
 	
-	if (PEProcess==NULL) //no valid peprocess was given so I made a reference, so lets also dereference
+	if (pe_process==NULL) //no valid peprocess was given so I made a reference, so lets also dereference
 	{
 		ObDereferenceObject(selectedprocess);
 	}
@@ -386,41 +513,31 @@ BOOLEAN WriteProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Siz
 	return NT_SUCCESS(ntStatus);
 }
 
-
-BOOLEAN ReadProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Size, PVOID Buffer)
+BOOLEAN ReadProcessMemory(DWORD pid,PEPROCESS pe_process,PVOID sourcePtr, DWORD size, PVOID bufferPtr)
 {
-	PEPROCESS selectedprocess=PEProcess;
-	//KAPC_STATE apc_state;
+	PEPROCESS selectedprocess=pe_process;
 	NTSTATUS ntStatus=STATUS_UNSUCCESSFUL;
 
-	if (PEProcess==NULL)
+	if (pe_process==NULL)
 	{
-		if (!NT_SUCCESS(PsLookupProcessByProcessId((PVOID)(UINT_PTR)PID,&selectedprocess)))
+		if (!NT_SUCCESS(PsLookupProcessByProcessId((PVOID)(UINT_PTR)pid,&selectedprocess)))
 		   return FALSE; //couldn't get the PID
  
 	}
 
-	//selectedprocess now holds a valid peprocess value
 	__try
 	{
     	KeAttachProcess((PEPROCESS)selectedprocess);
 
-
-
         __try
         {
-			char* target;
-			char* source;
-			int i;
-
-		
-			if ((IsAddressSafe((UINT_PTR)Address)) && (IsAddressSafe((UINT_PTR)Address+Size-1)))
+	        if ((IsAddressSafe((UINT_PTR)sourcePtr)) && (IsAddressSafe((UINT_PTR)sourcePtr+size-1)))
 			{
 				
 
 
-				target=Buffer;
-				source=Address;
+				char* target = bufferPtr;
+				char* source = sourcePtr;
 
 				if (loadedbydbvm) //add a extra security around it
 				{
@@ -431,19 +548,17 @@ BOOLEAN ReadProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Size
 			
 				if ((loadedbydbvm) || ((UINT_PTR)source < 0x8000000000000000ULL))
 				{
-					RtlCopyMemory(target, source, Size);
+					RtlCopyMemory(target, source, size);
 					ntStatus = STATUS_SUCCESS;
 				}
 				else
 				{
-					i=NoExceptions_CopyMemory(target, source, Size);
-					if (i != (int)Size)
+					int i = NoExceptions_CopyMemory(target, source, size);
+					if (i != (int)size)
 						ntStatus = STATUS_UNSUCCESSFUL;
 					else
 						ntStatus = STATUS_SUCCESS;
 				}
-				
-				
 
 				if (loadedbydbvm)
 				{
@@ -457,10 +572,7 @@ BOOLEAN ReadProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Size
 					if (lastError)
 						ntStatus=STATUS_UNSUCCESSFUL;
 				}
-
-				
 			}
-				
 		}
 		__finally
 		{
@@ -475,7 +587,7 @@ BOOLEAN ReadProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Size
 		ntStatus = STATUS_UNSUCCESSFUL;
 	}
 	
-	if (PEProcess==NULL) //no valid peprocess was given so I made a reference, so lets also dereference
+	if (pe_process==NULL) //no valid peprocess was given so I made a reference, so lets also dereference
 		ObDereferenceObject(selectedprocess);
 
 	return NT_SUCCESS(ntStatus);
@@ -697,19 +809,19 @@ BOOL walkPagingLayout(PEPROCESS PEProcess, UINT_PTR MaxAddress, PRESENTPAGECALLB
 				lastAddress = currentAddress;
 
 				
-				(UINT_PTR)PPTE = (UINT_PTR)(((currentAddress & 0xFFFFFFFFFFFFULL) >> 12) *PTESize + pagebase);
-				(UINT_PTR)PPDE = (UINT_PTR)((((UINT_PTR)PPTE) & 0xFFFFFFFFFFFFULL) >> 12) *PTESize + pagebase;
-				(UINT_PTR)PPDPE = (UINT_PTR)((((UINT_PTR)PPDE) & 0xFFFFFFFFFFFFULL) >> 12) *PTESize + pagebase;
-				(UINT_PTR)PPML4E = (UINT_PTR)((((UINT_PTR)PPDPE) & 0xFFFFFFFFFFFFULL) >> 12) *PTESize + pagebase;
+				PPTE  = (struct PTEStruct*)(UINT_PTR) ((((currentAddress & 0xFFFFFFFFFFFFULL) >> 12) * PTESize) + pagebase);
+				PPDE  = (struct PTEStruct*)(UINT_PTR) (((((UINT_PTR)PPTE) & 0xFFFFFFFFFFFFULL) >> 12) * PTESize + pagebase);
+				PPDPE = (struct PTEStruct*)(UINT_PTR) (((((UINT_PTR)PPDE) & 0xFFFFFFFFFFFFULL) >> 12) * PTESize + pagebase);
+				PPML4E= (struct PTEStruct*)(UINT_PTR) (((((UINT_PTR)PPDPE) & 0xFFFFFFFFFFFFULL) >> 12) * PTESize + pagebase);
 				if (PTESize == 8)
-					(UINT_PTR)PPDPE = ((((UINT_PTR)PPDE) & 0xFFFFFFFFFFFFULL) >> 12) *PTESize + pagebase;
+					PPDPE = (struct PTEStruct*)(UINT_PTR)(((((UINT_PTR)PPDE) & 0xFFFFFFFFFFFFULL) >> 12) * PTESize + pagebase);
 				else
-					(UINT_PTR)PPDPE = 0;
+					PPDPE = (struct PTEStruct*)0;
 
 #ifdef AMD64
-				(UINT_PTR)PPML4E = ((((UINT_PTR)PPDPE) & 0xFFFFFFFFFFFFULL) >> 12) *PTESize + pagebase;
+				PPML4E = (struct PTEStruct*)(UINT_PTR)(((((UINT_PTR)PPDPE) & 0xFFFFFFFFFFFFULL) >> 12) * PTESize + pagebase);
 #else
-				(UINT_PTR)PPML4E = 0;
+				PPML4E = (struct PTEStruct*)0;
 #endif
 
 	
