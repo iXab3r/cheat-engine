@@ -2,6 +2,7 @@
 
 #include "ntifs.h"
 #include <windef.h>
+#include <excpt.h>
 #ifdef CETC
 #include "tdiwrapper.h"
 #include "kfiles.h"
@@ -168,7 +169,7 @@ BOOLEAN IsAddressSafe(UINT_PTR StartAddress)
 		lasterror=vmx_getLastSkippedPageFault();
 		enableInterrupts();
 
-		LogInfo("IsAddressSafe dbvm-mode: lastError=%p\n", lasterror);
+		LogInfo("IsAddressSafe dbvm-mode: lastError=%p", lasterror);
 		
 		if (lasterror) return FALSE;		
 	}
@@ -270,13 +271,16 @@ BOOLEAN WriteProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Siz
 	KAPC_STATE apc_state;
 	NTSTATUS ntStatus=STATUS_UNSUCCESSFUL;
 		
+	LogTrace("[WPM] Writing %db @ 0x%llx in PID %d", Size, Address, PID);
 	if (selectedprocess==NULL)
 	{
-		//LogInfo("WriteProcessMemory:Getting PEPROCESS\n");
+		LogTrace("[WPM] Getting PEPROCESS for %d", PID);
         if (!NT_SUCCESS(PsLookupProcessByProcessId((PVOID)(UINT_PTR)PID,&selectedprocess)))
-		   return FALSE; //couldn't get the PID
-
-		//LogInfo("Retrieved peprocess");  
+        {
+		   LogWarn("[WPM] Could not get PEPROCESS for %d", PID);
+		   return FALSE;
+        }
+		LogTrace("[WPM] Retrieved peprocess");  
 	}
 
 	//selectedprocess now holds a valid peprocess value
@@ -288,63 +292,64 @@ BOOLEAN WriteProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Siz
 
         __try
         {
-			char* target;
-			char* source;
-			unsigned int i;	
-
-			//LogInfo("Checking safety of memory\n");
-
-			if ((IsAddressSafe((UINT_PTR)Address)) && (IsAddressSafe((UINT_PTR)Address+Size-1)))
+	        LogTrace("[WPM] Checking safety of memory @ 0x%llx", Address);
+			if (IsAddressSafe((UINT_PTR)Address) && IsAddressSafe((UINT_PTR)Address+Size-1))
 			{			
-
-	    		//still here, then I gues it's safe to read. (But I can't be 100% sure though, it's still the users problem if he accesses memory that doesn't exist)
 				BOOL disabledWP = FALSE;
 
-				target=Address;
-				source=Buffer;
+				char* target = Address;
+				char* source = Buffer;
 
-				if ((loadedbydbvm) || (KernelWritesIgnoreWP))  //add a extra security around it as the PF will not be handled
+				LogTrace("[WPM] Flags state: loadedByDBVM=%d, KernelWritesIgnoreWP=%d",loadedbydbvm, KernelWritesIgnoreWP);
+				if (loadedbydbvm || KernelWritesIgnoreWP)  //add a extra security around it as the PF will not be handled
 				{
 					disableInterrupts();
 
 					if (loadedbydbvm)
+					{
 						vmx_disable_dataPageFaults();
+					}
 
 					if (KernelWritesIgnoreWP)
 					{
-						LogInfo("Disabling CR0.WP");
+						LogTrace("[WPM] Disabling CR0.WP");
 						setCR0(getCR0() & (~(1 << 16))); //disable the WP bit					
 						disabledWP = TRUE;							
-						LogInfo("Disabled CR0.WP");
+						LogTrace("[WPM] Disabled CR0.WP");
 					}
 				}
 
 				
 				if ((!loadedbydbvm) && ((KernelWritesIgnoreWP) || ((UINT_PTR)target >= 0x8000000000000000ULL)))
 				{
-					LogTrace("Writing without exceptions");
-					i = NoExceptions_CopyMemory(target, source, Size);
+					LogTrace("[WPM] Writing without exceptions");
+					unsigned int i = NoExceptions_CopyMemory(target, source, Size);
 					if (i != (int)Size)
+					{
 						ntStatus = STATUS_UNSUCCESSFUL;
+					}
 					else
-						ntStatus = STATUS_SUCCESS;					
+					{
+						ntStatus = STATUS_SUCCESS;
+					}					
 				}
 				else
 				{
-					LogTrace("Writing using RtlCopyMemory");
+					LogTrace("[WPM] Writing using RtlCopyMemory");
 					RtlCopyMemory(target, source, Size);
 					ntStatus = STATUS_SUCCESS;
+					LogTrace("[WPM] Wrote using RtlCopyMemory successfully");
 				}
 				   
-				if ((loadedbydbvm) || (disabledWP))
+				if (loadedbydbvm || disabledWP)
 				{
 					UINT_PTR lastError=0;
 
 					if (disabledWP)
 					{						
-						LogInfo("Enabling CR0.WP");
+						LogTrace("[WPM] Enabling CR0.WP");
 						setCR0(getCR0() | (1 << 16));
-						LogInfo("Enabled CR0.WP");
+						LogTrace("[WPM] Enabled CR0.WP");
 					}
 
 					if (loadedbydbvm)
@@ -357,28 +362,26 @@ BOOLEAN WriteProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Siz
 
 					if (lastError)
 					{
-						LogError("WPM failed, lastError=%llu\n", lastError);
+						LogError("[WPM] WPM failed, lastError=%llu", lastError);
 						ntStatus=STATUS_UNSUCCESSFUL;
 					}
 				}
-
 			}
-
-			
 		}
 		__finally
 		{
 			KeDetachProcess();
 		}
 	}			
-	__except(1)
-	{
-		//LogInfo("Error while writing\n");
+	__except ( WpmSehLogFilter(GetExceptionInformation()) ) {
+		LogError("[WPM] Error while writing");   // optional extra message
 		ntStatus = STATUS_UNSUCCESSFUL;
 	}
 	
 	if (PEProcess==NULL) //no valid peprocess was given so I made a reference, so lets also dereference
+	{
 		ObDereferenceObject(selectedprocess);
+	}
 
 	return NT_SUCCESS(ntStatus);
 }
@@ -450,7 +453,7 @@ BOOLEAN ReadProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Size
 
 					enableInterrupts();
 
-					LogInfo("lastError=%p\n", lastError);
+					LogInfo("lastError=%p", lastError);
 					if (lastError)
 						ntStatus=STATUS_UNSUCCESSFUL;
 				}
@@ -467,7 +470,7 @@ BOOLEAN ReadProcessMemory(DWORD PID,PEPROCESS PEProcess,PVOID Address,DWORD Size
 	}			
 	__except(1)
 	{
-		//LogInfo("Error while reading: ReadProcessMemory(%x,%p, %p, %d, %p\n", PID, PEProcess, Address, Size, Buffer);
+		//LogInfo("Error while reading: ReadProcessMemory(%x,%p, %p, %d, %p", PID, PEProcess, Address, Size, Buffer);
 
 		ntStatus = STATUS_UNSUCCESSFUL;
 	}
@@ -513,7 +516,7 @@ NTSTATUS ReadPhysicalMemory(char *startaddress, UINT_PTR bytestoread, void *outp
 
 	if (((UINT64)startaddress > getMaxPhysAddress()) || ((UINT64)startaddress + bytestoread > getMaxPhysAddress()))
 	{
-		LogInfo("Invalid physical address\n");
+		LogInfo("Invalid physical address");
 		return ntStatus;
 	}
 	
@@ -603,7 +606,7 @@ NTSTATUS ReadPhysicalMemory(char *startaddress, UINT_PTR bytestoread, void *outp
 	}
 	__except(1)
 	{
-		LogInfo("Error while reading physical memory\n");
+		LogInfo("Error while reading physical memory");
 	}
 
 	MmUnlockPages(outputMDL);
@@ -654,7 +657,7 @@ UINT_PTR getPageTableBase()
 		else
 			KnownPageTableBase=PAGETABLEBASE;
 
-		LogInfo("PageTableBase at %p\n", KnownPageTableBase);
+		LogInfo("PageTableBase at %p", KnownPageTableBase);
 	}	
 
 	return KnownPageTableBase;
@@ -690,7 +693,7 @@ BOOL walkPagingLayout(PEPROCESS PEProcess, UINT_PTR MaxAddress, PRESENTPAGECALLB
 
 			while ((currentAddress < MaxAddress) && (lastAddress<=currentAddress) )
 			{
-				//LogInfo("currentAddress=%p\n", currentAddress);
+				//LogInfo("currentAddress=%p", currentAddress);
 				lastAddress = currentAddress;
 
 				
@@ -775,7 +778,7 @@ BOOL walkPagingLayout(PEPROCESS PEProcess, UINT_PTR MaxAddress, PRESENTPAGECALLB
 	}
 	__except (1)
 	{
-		LogInfo("Excepion while walking the paging layout\n");
+		LogInfo("Excepion while walking the paging layout");
 		return FALSE;
 	}
 
@@ -842,7 +845,7 @@ int enumAllAccessedPages(PEPROCESS PEProcess)
 
 	if (walkPagingLayout(PEProcess, MaxAddress, StoreAccessedRanges))
 	{
-		//LogInfo("AccessedListSize=%d\n", AccessedListSize);
+		//LogInfo("AccessedListSize=%d", AccessedListSize);
 		return AccessedListSize*sizeof(PRANGE);
 	}
 	else
@@ -855,7 +858,7 @@ int getAccessedPageList(PPRANGE List, int ListSizeInBytes)
 	int maxcount = ListSizeInBytes / sizeof(PRANGE);
 	int i = 0;
 
-//	LogInfo("getAccessedPageList\n");
+//	LogInfo("getAccessedPageList");
 
 	while (e)
 	{
@@ -865,7 +868,7 @@ int getAccessedPageList(PPRANGE List, int ListSizeInBytes)
 			break;
 		}
 
-		//LogInfo("i=%d  (%p -> %p)\n", i, e->Range.StartAddress, e->Range.EndAddress);
+		//LogInfo("i=%d  (%p -> %p)", i, e->Range.StartAddress, e->Range.EndAddress);
 		List[i] = e->Range;
 		e = e->Next;
 
@@ -1325,7 +1328,7 @@ BOOLEAN GetMemoryRegionData(DWORD PID,PEPROCESS PEProcess, PVOID mempointer,ULON
 	}
 	__except(1)
 	{
-		LogInfo("Exception in GetMemoryRegionData\n");
+		LogInfo("Exception in GetMemoryRegionData");
 		LogInfo("mempointer=%p",mempointer);
 	}
 

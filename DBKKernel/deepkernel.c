@@ -110,7 +110,7 @@ BOOLEAN CheckImageName(IN PUNICODE_STRING FullImageName, IN char* List,int lists
 	ANSI_STRING tempstring;
 	int i;
 
-	LogInfo("Checking this image name...\n");
+	LogInfo("Checking this image name...");
 	RtlZeroMemory(&tempstring,sizeof(ANSI_STRING));
 	if (RtlUnicodeStringToAnsiString(&tempstring,FullImageName,TRUE)== STATUS_SUCCESS)
 	{
@@ -129,12 +129,12 @@ BOOLEAN CheckImageName(IN PUNICODE_STRING FullImageName, IN char* List,int lists
 					modulesize=i-(INT_PTR)(p-List);
 					if (modulesize>=0)
 					{	
-						LogInfo("Checking %s with %s\n",&tempstring.Buffer[tempstring.Length-modulesize],p);
+						LogInfo("Checking %s with %s",&tempstring.Buffer[tempstring.Length-modulesize],p);
 
 						if ((tempstring.Length>=modulesize) && (strcmp(p,&tempstring.Buffer[tempstring.Length-modulesize])==0))
 						{
 							//we have a match!!!
-							LogInfo("It's a match with %s\n",p);
+							LogInfo("It's a match with %s",p);
 							return TRUE;	
 						}						
 	
@@ -152,7 +152,7 @@ BOOLEAN CheckImageName(IN PUNICODE_STRING FullImageName, IN char* List,int lists
 		}
 	}
 
-	LogInfo("No match\n");
+	LogInfo("No match");
 #endif
 	return FALSE;
 

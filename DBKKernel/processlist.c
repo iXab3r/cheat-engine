@@ -55,7 +55,7 @@ VOID GetThreadData(IN PDEVICE_OBJECT  DeviceObject, IN PVOID  Context)
 	tempThreadEntry=Context;
 	
 
-	LogInfo("Gathering PEThread thread\n");
+	LogInfo("Gathering PEThread thread");
 
 	Timeout.QuadPart = -1;
 	KeDelayExecutionThread(KernelMode, TRUE, &Timeout);
@@ -71,7 +71,7 @@ VOID GetThreadData(IN PDEVICE_OBJECT  DeviceObject, IN PVOID  Context)
 
 		if (selectedthread)
 		{
-			LogInfo("PEThread=%p\n", selectedthread);
+			LogInfo("PEThread=%p", selectedthread);
 			KeInitializeApc(AP,
 				(PKTHREAD)selectedthread,
 				0,
@@ -85,7 +85,7 @@ VOID GetThreadData(IN PDEVICE_OBJECT  DeviceObject, IN PVOID  Context)
 		}
 		else
 		{
-			LogInfo("Failed getting the pethread.\n");
+			LogInfo("Failed getting the pethread.");
 		}
 	}
 	ExReleaseResourceLite(&ProcesslistR);
@@ -109,9 +109,9 @@ VOID CreateThreadNotifyRoutine(IN HANDLE  ProcessId,IN HANDLE  ThreadId,IN BOOLE
 				ThreadEventData[ThreadEventCount].ThreadID = (UINT_PTR)ThreadId;
 
 				/*	if (Create)
-						LogInfo("Create ProcessID=%x\nThreadID=%x\n",(UINT_PTR)ProcessId,(UINT_PTR)ThreadId);
+						LogInfo("Create ProcessID=%x\nThreadID=%x",(UINT_PTR)ProcessId,(UINT_PTR)ThreadId);
 						else
-						LogInfo("Destroy ProcessID=%x\nThreadID=%x\n",(UINT_PTR)ProcessId,(UINT_PTR)ThreadId);
+						LogInfo("Destroy ProcessID=%x\nThreadID=%x",(UINT_PTR)ProcessId,(UINT_PTR)ThreadId);
 						*/
 
 				ThreadEventCount++;
@@ -276,7 +276,7 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 					tempProcessEntry->PEProcess = CurrentProcess;
 					tempProcessEntry->Threads = NULL;
 
-					LogInfo("Allocated a process at:%p\n", tempProcessEntry);
+					LogInfo("Allocated a process at:%p", tempProcessEntry);
 
 					if (!processlist)
 					{
@@ -320,12 +320,12 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 							tempthread=tempProcessEntry->Threads;
 							tempthread2=tempthread;
 
-							LogInfo("Process ended. Freeing threads\n");
+							LogInfo("Process ended. Freeing threads");
 
 							while (tempthread)
 							{
 							tempthread=tempthread->next;
-							LogInfo("Free thread %p (next thread=%p)\n",tempthread2,tempthread);
+							LogInfo("Free thread %p (next thread=%p)",tempthread2,tempthread);
 							ExFreePool(tempthread2);
 							tempthread2=tempthread;
 							}
@@ -343,7 +343,7 @@ VOID CreateProcessNotifyRoutine(IN HANDLE  ParentId, IN HANDLE  ProcessId, IN BO
 								tempProcessEntry = tempProcessEntry->next;
 							}
 
-							LogInfo("There are %d processes in the list\n", i);
+							LogInfo("There are %d processes in the list", i);
 
 							break;
 						}

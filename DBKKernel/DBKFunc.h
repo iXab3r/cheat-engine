@@ -9,23 +9,7 @@
 #include <windef.h>
 
 #include "interruptHook.h"
-
-#ifdef RELEASE
-#define LogInfo(...) 
-#define LogWarn(...) 
-#define LogError(...) 
-#define LogTrace(...) 
-#else
-
-// Map legacy DbgPrint to modern DbgPrintEx with IHV driver component and info level
-#ifndef DbgPrint
-#define LogInfo(...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, __VA_ARGS__)
-#define LogWarn(...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_WARNING_LEVEL, __VA_ARGS__)
-#define LogError(...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, __VA_ARGS__)
-#define LogTrace(...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL, __VA_ARGS__)
-#endif
-
-#endif
+#include "logging.h"
 
 int _fltused;
 
@@ -36,7 +20,6 @@ typedef F *PF;
 typedef VOID PREDPC_CALLBACK(CCHAR cpunr, PKDEFERRED_ROUTINE Dpc, PVOID DeferredContext, PVOID *SystemArgument1, PVOID *SystemArgument2);
 
 typedef PREDPC_CALLBACK *PPREDPC_CALLBACK;
-
 
 typedef struct _criticalSection
 {

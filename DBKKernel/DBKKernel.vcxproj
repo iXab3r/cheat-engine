@@ -315,6 +315,7 @@ makecab /f "$(ProjectDir)\dea64.ddf"
     <ClCompile Include="deepkernel.c" />
     <ClCompile Include="interruptHook.c" />
     <ClCompile Include="IOPLDispatcher.c" />
+    <ClCompile Include="logging.c" />
     <ClCompile Include="memscan.c" />
     <ClCompile Include="noexceptions.c" />
     <ClCompile Include="processlist.c" />
@@ -344,6 +345,7 @@ makecab /f "$(ProjectDir)\dea64.ddf"
     <ClInclude Include="interruptHook.h" />
     <ClInclude Include="IOPLDispatcher.h" />
     <ClInclude Include="kfiles.h" />
+    <ClInclude Include="logging.h" />
     <ClInclude Include="memscan.h" />
     <ClInclude Include="noexceptions.h" />
     <ClInclude Include="processlist.h" />

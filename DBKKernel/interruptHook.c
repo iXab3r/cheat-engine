@@ -47,7 +47,7 @@ int inthook_UnhookInterrupt(unsigned char intnr)
 	if (InterruptHook[intnr].hooked)
 	{
 		//it's hooked, try to unhook
-		LogInfo("cpu %d : interrupt %d is hooked\n",cpunr(),intnr);
+		LogInfo("cpu %d : interrupt %d is hooked",cpunr(),intnr);
 		if (InterruptHook[intnr].dbvmInterruptEmulation)
 		{
 			if (intnr==1)
@@ -95,7 +95,7 @@ int inthook_UnhookInterrupt(unsigned char intnr)
 				enableInterrupts();				
 			}
 
-			LogInfo("Restored\n");
+			LogInfo("Restored");
 		}
 	}
 
@@ -106,14 +106,14 @@ int inthook_HookInterrupt(unsigned char intnr, int newCS, ULONG_PTR newEIP, PJUM
 {
 	IDT idt;	
 	GetIDT(&idt);
-	LogInfo("inthook_HookInterrupt for cpu %d (vmxusable=%d)\n",cpunr(), vmxusable);
+	LogInfo("inthook_HookInterrupt for cpu %d (vmxusable=%d)",cpunr(), vmxusable);
 #ifdef AMD64
-	LogInfo("interrupt %d newCS=%x newEIP=%llx jumpbacklocation=%p\n",intnr, newCS, newEIP, jumpback);
+	LogInfo("interrupt %d newCS=%x newEIP=%llx jumpbacklocation=%p",intnr, newCS, newEIP, jumpback);
 #else
-	LogInfo("interrupt %d newCS=%x newEIP=%x jumpbacklocation=%p\n",intnr, newCS, newEIP, jumpback);
+	LogInfo("interrupt %d newCS=%x newEIP=%x jumpbacklocation=%p",intnr, newCS, newEIP, jumpback);
 #endif
 
-	LogInfo("InterruptHook[%d].hooked=%d\n", intnr, InterruptHook[intnr].hooked);
+	LogInfo("InterruptHook[%d].hooked=%d", intnr, InterruptHook[intnr].hooked);
 
 	if (!InterruptHook[intnr].hooked)
 	{
@@ -131,11 +131,11 @@ int inthook_HookInterrupt(unsigned char intnr, int newCS, ULONG_PTR newEIP, PJUM
 		jumpback->eip=InterruptHook[intnr].originalEIP;
 	}
 
-	LogInfo("vmxusable=%d\n", vmxusable);
+	LogInfo("vmxusable=%d", vmxusable);
 
 	if (vmxusable && ((intnr==1) || (intnr==3) || (intnr==14)) )
 	{	
-		LogInfo("VMX Hook path\n");
+		LogInfo("VMX Hook path");
 		
 		switch (intnr)
 		{
@@ -163,13 +163,13 @@ int inthook_HookInterrupt(unsigned char intnr, int newCS, ULONG_PTR newEIP, PJUM
 #ifdef AMD64
 		if (intnr<32)
 		{
-			LogInfo("64-bit: DBVM is not loaded and a non dbvm hookable interrupt is being hooked that falls below 32\n");
+			LogInfo("64-bit: DBVM is not loaded and a non dbvm hookable interrupt is being hooked that falls below 32");
 			return FALSE;
 		}
 #endif
 
 
-		LogInfo("sizeof newVector=%d\n",sizeof(INT_VECTOR));
+		LogInfo("sizeof newVector=%d",sizeof(INT_VECTOR));
 		
 		
 		newVector.wHighOffset=(WORD)((DWORD)(newEIP >> 16));
@@ -189,7 +189,7 @@ int inthook_HookInterrupt(unsigned char intnr, int newCS, ULONG_PTR newEIP, PJUM
 
 		InterruptHook[intnr].dbvmInterruptEmulation=0;
 
-		LogInfo("int %d will now go to %x:%p\n",intnr, newCS, newEIP);
+		LogInfo("int %d will now go to %x:%p",intnr, newCS, newEIP);
 
 	}
 

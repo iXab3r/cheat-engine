@@ -280,7 +280,7 @@ Runs at passive mode
 
 	DBVMMDL = MmAllocatePagesForMdlEx(LowAddress, HighAddress, SkipBytes, 4 * 1024 * 1024, MmCached, MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS | MM_ALLOCATE_FULLY_REQUIRED);
 	if (!DBVMMDL) {
-		LogInfo("Failure allocating the required 4MB\n");
+		LogInfo("Failure allocating the required 4MB");
 		return;
 	}
 
@@ -304,9 +304,9 @@ Runs at passive mode
 
 		vmmPA = (UINT_PTR)MmGetPhysicalAddress(vmm).QuadPart;
 
-		LogInfo("Allocated memory at virtual address %p (physical address %I64x)\n", vmm, MmGetPhysicalAddress(vmm));
+		LogInfo("Allocated memory at virtual address %p (physical address %I64x)", vmm, MmGetPhysicalAddress(vmm));
 		vmmPA = MmGetMdlPfnArray(DBVMMDL)[0] << 12;
-		LogInfo("(physical address %I64x)\n", vmmPA);
+		LogInfo("(physical address %I64x)", vmmPA);
 
 		RtlZeroMemory(vmm, 4 * 1024 * 1024); //initialize
 
@@ -341,7 +341,7 @@ Runs at passive mode
 
 			if (fsi.EndOfFile.QuadPart>4 * 1024 * 1024)
 			{
-				LogInfo("File bigger than 4MB. Big retard detected\n");
+				LogInfo("File bigger than 4MB. Big retard detected");
 				return;
 			}
 
@@ -353,7 +353,7 @@ Runs at passive mode
 			{
 				if (ZwWaitForSingleObject(dbvmimghandle, FALSE, NULL) != STATUS_SUCCESS)
 				{
-					LogInfo("Read failure\n");
+					LogInfo("Read failure");
 					return;
 				}
 			}
@@ -363,7 +363,7 @@ Runs at passive mode
 				DWORD vmmsize = fsi.EndOfFile.LowPart;// -(startsector * 512);
 
 				//now read the vmdisk into the allocated memory
-				LogInfo("The startsector=%d (that's offset %d)\n", startsector, startsector * 512);
+				LogInfo("The startsector=%d (that's offset %d)", startsector, startsector * 512);
 
 				byteoffset.QuadPart = startsector * 512;
 				ReadFile = ZwReadFile(dbvmimghandle, NULL, NULL, NULL, &statusblock, vmm, vmmsize, &byteoffset, NULL);
@@ -372,7 +372,7 @@ Runs at passive mode
 
 				vmmsize = (vmmsize + 4096) & 0xfffffffffffff000ULL; //adjust the size internally to a page boundary (sure, there's some mem loss, but it's predicted, dbvm assumes first 10 pages are scratch pages)
 
-				LogInfo("vmmsize=%x\n", vmmsize);
+				LogInfo("vmmsize=%x", vmmsize);
 
 				if (statusblock.Status == STATUS_SUCCESS)
 				{
@@ -400,7 +400,7 @@ Runs at passive mode
 
 
 					//blame MS for making this hard to read
-					LogInfo("Setting up initial paging table for vmm\n");
+					LogInfo("Setting up initial paging table for vmm");
 
 					*(PUINT64)(&PageMapLevel4[0]) = MmGetPhysicalAddress(PageDirPtr).QuadPart;
 					PageMapLevel4[0].P = 1;
@@ -468,15 +468,15 @@ Runs at passive mode
 					NewGDTDescriptor.limit = 0x6f; //111
 					NewGDTDescriptor.base = 0x00400000 + (UINT64)GDTBase - (UINT64)vmm;
 
-					LogInfo("&NewGDTDescriptor=%p, &NewGDTDescriptor.limit=%p, &NewGDTDescriptor.base=%p\n", &NewGDTDescriptor, &NewGDTDescriptor.limit, &NewGDTDescriptor.base);
-					LogInfo("NewGDTDescriptor.limit=%x\n", NewGDTDescriptor.limit);
-					LogInfo("NewGDTDescriptor.base=%p\n", NewGDTDescriptor.base);
+					LogInfo("&NewGDTDescriptor=%p, &NewGDTDescriptor.limit=%p, &NewGDTDescriptor.base=%p", &NewGDTDescriptor, &NewGDTDescriptor.limit, &NewGDTDescriptor.base);
+					LogInfo("NewGDTDescriptor.limit=%x", NewGDTDescriptor.limit);
+					LogInfo("NewGDTDescriptor.base=%p", NewGDTDescriptor.base);
 
 					NewGDTDescriptorVA = (UINT_PTR)&NewGDTDescriptor;
 
 
 					maxPA.QuadPart = 0x003fffffULL; //allocate 4k at the lower 4MB
-					LogInfo("Before enterVMM2 alloc: maxPA=%I64x\n", maxPA.QuadPart);
+					LogInfo("Before enterVMM2 alloc: maxPA=%I64x", maxPA.QuadPart);
 
 					enterVMM2 = MmAllocateContiguousMemory(4096, maxPA);
 					if (enterVMM2)
@@ -487,11 +487,11 @@ Runs at passive mode
 						enterVMM2MDL = IoAllocateMdl(enterVMM2, 4096, FALSE, FALSE, NULL);
 						MmProbeAndLockPages(enterVMM2MDL, KernelMode, IoReadAccess);
 
-						LogInfo("enterVMM is located at %p (%I64x)\n", enterVMM, MmGetPhysicalAddress(enterVMM).QuadPart);
-						LogInfo("enterVMM2 is located at %p (%I64x)\n", enterVMM2, MmGetPhysicalAddress(enterVMM2).QuadPart);
+						LogInfo("enterVMM is located at %p (%I64x)", enterVMM, MmGetPhysicalAddress(enterVMM).QuadPart);
+						LogInfo("enterVMM2 is located at %p (%I64x)", enterVMM2, MmGetPhysicalAddress(enterVMM2).QuadPart);
 
 
-						LogInfo("Copying function till end\n");
+						LogInfo("Copying function till end");
 						//copy memory
 
 						i = 0;
@@ -501,11 +501,11 @@ Runs at passive mode
 						LogInfo("size is %d", i);
 
 						RtlCopyMemory(enterVMM2, original, i);
-						LogInfo("Copy done\n");
+						LogInfo("Copy done");
 					}
 					else
 					{
-						LogInfo("Failure allocating enterVMM2\n");
+						LogInfo("Failure allocating enterVMM2");
 						return;
 					}
 
@@ -516,11 +516,11 @@ Runs at passive mode
 					//easiest way, make every page point to enterVMM2				
 
 					//allocate 4 pages
-					LogInfo("Allocating memory for the temp pagedir\n");
+					LogInfo("Allocating memory for the temp pagedir");
 					TemporaryPagingSetup = ExAllocatePool(PagedPool, 4 * 4096);
 					if (TemporaryPagingSetup == NULL)
 					{
-						LogInfo("TemporaryPagingSetup==NULL!!!\n");
+						LogInfo("TemporaryPagingSetup==NULL!!!");
 						return;
 					}
 
@@ -530,15 +530,15 @@ Runs at passive mode
 
 
 					RtlZeroMemory(TemporaryPagingSetup, 4096 * 4);
-					LogInfo("TemporaryPagingSetup is located at %p (%I64x)\n", TemporaryPagingSetup, MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart);
+					LogInfo("TemporaryPagingSetup is located at %p (%I64x)", TemporaryPagingSetup, MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart);
 
 
 					TemporaryPagingSetupPA = MmGetMdlPfnArray(TemporaryPagingSetupMDL)[0] << 12; // (UINT_PTR)MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart;
 
 					enterVMM2PA = MmGetMdlPfnArray(enterVMM2MDL)[0] << 12;
-					LogInfo("TemporaryPagingSetupPA = (%I64x) (Should be %I64x)\n", (UINT64)TemporaryPagingSetupPA, (UINT64)MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart);
+					LogInfo("TemporaryPagingSetupPA = (%I64x) (Should be %I64x)", (UINT64)TemporaryPagingSetupPA, (UINT64)MmGetPhysicalAddress(TemporaryPagingSetup).QuadPart);
 #ifdef AMD64			
-					LogInfo("Setting up temporary paging setup for x64\n");
+					LogInfo("Setting up temporary paging setup for x64");
 
 
 					{
@@ -547,7 +547,7 @@ Runs at passive mode
 						PUINT64	PageDir = (PUINT64)((UINT_PTR)TemporaryPagingSetup + 2 * 4096);
 						PUINT64	PageTable = (PUINT64)((UINT_PTR)TemporaryPagingSetup + 3 * 4096);
 
-						LogInfo("PAE paging\n");
+						LogInfo("PAE paging");
 						for (i = 0; i<512; i++)
 						{
 							PML4Table[i] = MmGetPhysicalAddress(PageDirPtr).QuadPart;
@@ -566,14 +566,14 @@ Runs at passive mode
 					}
 
 #else
-					LogInfo("Setting up temporary paging setup\n");
+					LogInfo("Setting up temporary paging setup");
 					if (PTESize==8) //PAE paging
 					{
 						PUINT64	PageDirPtr=(PUINT64)TemporaryPagingSetup;						
 						PUINT64	PageDir=(PUINT64)((UINT_PTR)TemporaryPagingSetup+4096);
 						PUINT64	PageTable=(PUINT64)((UINT_PTR)TemporaryPagingSetup+2*4096);
 
-						LogInfo("PAE paging\n");
+						LogInfo("PAE paging");
 						for (i=0; i<512; i++)
 						{
 							PageDirPtr[i]=MmGetPhysicalAddress(PageDir).QuadPart;
@@ -598,7 +598,7 @@ Runs at passive mode
 						//normal(old) 4 byte page entries
 						PDWORD PageDir=(PDWORD)TemporaryPagingSetup;
 						PDWORD PageTable=(PDWORD)((DWORD)TemporaryPagingSetup+4096);
-						LogInfo("Normal paging\n");
+						LogInfo("Normal paging");
 						for (i=0; i<1024; i++)
 						{
 							PageDir[i]=MmGetPhysicalAddress(PageTable).LowPart;
@@ -614,7 +614,7 @@ Runs at passive mode
 					}
 #endif
 
-					LogInfo("Temp paging has been setup\n");
+					LogInfo("Temp paging has been setup");
 
 
 					//enterVMM2PA = (UINT_PTR)MmGetPhysicalAddress(enterVMM2).QuadPart;
@@ -629,9 +629,9 @@ Runs at passive mode
 					RtlZeroMemory(originalstate, 4096);
 					originalstatePA = MmGetMdlPfnArray(originalstateMDL)[0] << 12; //(UINT_PTR)MmGetPhysicalAddress(originalstate).QuadPart;					
 
-					LogInfo("enterVMM2PA=%llx\n", enterVMM2PA);
-					LogInfo("originalstatePA=%llx\n", originalstatePA);
-					LogInfo("originalstatePA=%llx\n", (UINT_PTR)MmGetPhysicalAddress(originalstate).QuadPart);
+					LogInfo("enterVMM2PA=%llx", enterVMM2PA);
+					LogInfo("originalstatePA=%llx", originalstatePA);
+					LogInfo("originalstatePA=%llx", (UINT_PTR)MmGetPhysicalAddress(originalstate).QuadPart);
 
 					//setup init vars	
 					initvars->loadedOS = originalstatePA;
@@ -643,7 +643,7 @@ Runs at passive mode
 					PMDL contiguousMDL = MmAllocatePagesForMdlEx(LowAddress, HighAddress, SkipBytes, 8 * 4096, MmCached, MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS | MM_ALLOCATE_FULLY_REQUIRED);
 					if (contiguousMDL) {
 						initvars->contiguousmemory = MmGetMdlPfnArray(contiguousMDL)[0] << 12;
-						LogInfo("contiguous PA =%llx\n", initvars->contiguousmemory);
+						LogInfo("contiguous PA =%llx", initvars->contiguousmemory);
 						initvars->contiguousmemorysize = 8;
 						ExFreePool(contiguousMDL);
 					}
@@ -660,18 +660,18 @@ Runs at passive mode
 			ZwClose(dbvmimghandle);
 
 
-			LogInfo("Opened and processed: %S\n", filename.Buffer);
+			LogInfo("Opened and processed: %S", filename.Buffer);
 		}
 		else
 		{
-			LogInfo("Failure opening the file. Status=%x  (filename=%S)\n", OpenedFile, filename.Buffer);
+			LogInfo("Failure opening the file. Status=%x  (filename=%S)", OpenedFile, filename.Buffer);
 		}
 		//fill in some specific memory regions
 		MmUnmapLockedPages(vmm, DBVMMDL);
 	}
 	else
 	{
-		LogInfo("Failure allocating the required 4MB\n");
+		LogInfo("Failure allocating the required 4MB");
 	}
 	ExFreePool(DBVMMDL);
 }
@@ -692,7 +692,7 @@ void vmxoffload(void)
 	}
 	__except (1)
 	{
-		LogInfo("No debugger\n");
+		LogInfo("No debugger");
 	}*/
 	
 	
@@ -702,16 +702,16 @@ void vmxoffload(void)
 	boundary.QuadPart=0x00800000ULL; //8 mb boundaries
 
 
-	LogInfo("vmxoffload\n");
+	LogInfo("vmxoffload");
 
 
 
-	LogInfo("initializedvmm=%d\n", initializedvmm); 
+	LogInfo("initializedvmm=%d", initializedvmm); 
 	if (initializedvmm)
 	{
-		LogInfo("cpunr=%d\n",cpunr());
+		LogInfo("cpunr=%d",cpunr());
 		
-		LogInfo("Storing original state\n");
+		LogInfo("Storing original state");
 		originalstate->cpucount=getCpuCount();
 		LogInfo("originalstate->cpucount=%d",originalstate->cpucount);
 
@@ -792,7 +792,7 @@ void vmxoffload(void)
 		originalstate->fsbase=readMSR(0xc0000100);
 		originalstate->gsbase=readMSR(0xc0000101);
 
-		//LogInfo("originalstate->fsbase=%I64x originalstate->gsbase=%I64x\n", originalstate->fsbase, originalstate->gsbase);
+		//LogInfo("originalstate->fsbase=%I64x originalstate->gsbase=%I64x", originalstate->fsbase, originalstate->gsbase);
 
 
 		originalstate->dr7=getDR7();
@@ -863,7 +863,7 @@ void vmxoffload(void)
 
 		//LogInfo("originalstate->rip=%llx",originalstate->rip);
 
-		//LogInfo("Calling entervmm2. (Originalstate=%p (%llx))\n",originalstate,originalstatePA);
+		//LogInfo("Calling entervmm2. (Originalstate=%p (%llx))",originalstate,originalstatePA);
 
 
 		
@@ -874,9 +874,9 @@ void vmxoffload(void)
 		
 		enableInterrupts();
 
-		//LogInfo("Returned from enterVMMPrologue\n");
+		//LogInfo("Returned from enterVMMPrologue");
 
-		//LogInfo("cpunr=%d\n",cpunr());
+		//LogInfo("cpunr=%d",cpunr());
 
 	
 		
@@ -888,7 +888,7 @@ void vmxoffload(void)
 
 
 		
-		//LogInfo("cpunr=%d\n",cpunr());
+		//LogInfo("cpunr=%d",cpunr());
 #else
 
 		
@@ -950,7 +950,7 @@ enterVMMEpilogue:
 		//KeLowerIrql(oldirql);
 		
 #endif
-		//LogInfo("Returning\n");
+		//LogInfo("Returning");
 
 		return;
 
@@ -967,7 +967,7 @@ void vmxoffload_override(CCHAR cpunr, PKDEFERRED_ROUTINE Dpc, PVOID DeferredCont
 	//allocate 64KB of extra memory for this(and every other) cpu's DBVM
 	PHYSICAL_ADDRESS LowAddress, HighAddress, SkipBytes;
 	PMDL mdl;
-	LogInfo("vmxoffload_override\n");
+	LogInfo("vmxoffload_override");
 	LowAddress.QuadPart = 0;
 	HighAddress.QuadPart = 0xffffffffffffffffI64;
 	SkipBytes.QuadPart = 0;
@@ -980,11 +980,11 @@ void vmxoffload_override(CCHAR cpunr, PKDEFERRED_ROUTINE Dpc, PVOID DeferredCont
 		int i;
 		PFN_NUMBER *pfnlist;
 
-		LogInfo("vmxoffload_override: mi=%p\n", mi);
+		LogInfo("vmxoffload_override: mi=%p", mi);
 		
 		mi->List = ExAllocatePool(NonPagedPool, sizeof(UINT64) * 16);
 
-		LogInfo("vmxoffload_override: mi->list=%p\n", mi->List);
+		LogInfo("vmxoffload_override: mi->list=%p", mi->List);
 
 		pfnlist = MmGetMdlPfnArray(mdl);
 		
@@ -1012,7 +1012,7 @@ __in_opt PVOID SystemArgument2
 )
 {
 	int c = cpunr();
-	LogInfo("vmxoffload_dpc: CPU %d\n", c);
+	LogInfo("vmxoffload_dpc: CPU %d", c);
 	KeAcquireSpinLockAtDpcLevel(&LoadedOSSpinLock);
 	vmxoffload();
 
@@ -1021,10 +1021,10 @@ __in_opt PVOID SystemArgument2
 	{
 		int x;
 		PDBVMOffloadMemInfo mi = (PDBVMOffloadMemInfo)SystemArgument1;
-		LogInfo("mi->List=%p mi->Count=%d\n", mi->List, mi->Count);
+		LogInfo("mi->List=%p mi->Count=%d", mi->List, mi->Count);
 
 		x=vmx_add_memory(mi->List, mi->Count);
-		LogInfo("vmx_add_memory returned %x\n", x);
+		LogInfo("vmx_add_memory returned %x", x);
 
 		if (mi->List)
 			ExFreePool(mi->List);
@@ -1032,6 +1032,6 @@ __in_opt PVOID SystemArgument2
 		ExFreePool(mi);
 	}
 	else
-		LogInfo("Error: SystemArgument1=NULL\n");
+		LogInfo("Error: SystemArgument1=NULL");
 	KeReleaseSpinLockFromDpcLevel(&LoadedOSSpinLock);
 }
