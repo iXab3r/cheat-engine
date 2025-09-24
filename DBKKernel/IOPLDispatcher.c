@@ -2502,33 +2502,19 @@ case IOCTL_CE_GETCPUIDS:
             PCRT_INPUT inp = (PCRT_INPUT)Irp->AssociatedIrp.SystemBuffer;
             PCRT_OUTPUT outp = (PCRT_OUTPUT)Irp->AssociatedIrp.SystemBuffer; // same buffer, METHOD_BUFFERED
 
-
             LogInfo("[IOCTL_CE_CREATEREMOTETHREAD] Creating new thread in PID=%llu Start=%p Param=%p",
                     inp->processid, inp->startaddress, inp->parameter);
 
-            CLIENT_ID cid = {0};
-
             ntStatus = Inject_CreateRemoteThread(inp->processid,
                                                  inp->startaddress,
-                                                 inp->parameter,
-                                                 FALSE,
-                                                 NULL,
-                                                 &cid);
+                                                 inp->parameter);
 
-            // Prepare output (clear just the struct we will return)
             RtlZeroMemory(outp, sizeof(*outp));
-
-            ntStatus = INVALID_ALTERNATE_SYSTEM_CALL_HANDLER_REGISTRATION;
 
             if (NT_SUCCESS(ntStatus))
             {
-                LogInfo("[IOCTL_CE_CREATEREMOTETHREAD] Created remote thread: PID=%p TID=%p", cid.UniqueProcess,
-                        cid.UniqueThread);
+                LogInfo("[IOCTL_CE_CREATEREMOTETHREAD] Created remote thread");
 
-                outp->ThreadProcessId = cid.UniqueProcess;
-                outp->ThreadId = cid.UniqueThread;
-
-                // Return exactly the bytes we filled
                 Irp->IoStatus.Information = sizeof(CRT_OUTPUT);
             }
             else
