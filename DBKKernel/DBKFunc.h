@@ -5,6 +5,7 @@
 
 #include <ntifs.h>
 #include <ntstrsafe.h>
+#include "blackbone/Imports.h"
 
 #include <windef.h>
 
@@ -87,13 +88,6 @@ KENUM_ROUTINE(
 );
 
 typedef KENUM_ROUTINE *PKENUM_ROUTINE;
-
-typedef enum _KAPC_ENVIRONMENT {
-	OriginalApcEnvironment,
-	AttachedApcEnvironment,
-	CurrentApcEnvironment,
-	InsertApcEnvironment
-} KAPC_ENVIRONMENT;
 
 
 

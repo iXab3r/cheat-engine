@@ -18,6 +18,7 @@
 #include "ultimap.h"
 #include "ultimap2.h"
 #include "noexceptions.h"
+#include "blackbone/BlackBoneDrv.h"
 
 #include "ultimap2\apic.h"
 
@@ -199,6 +200,15 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 	{
 		TraceLoggingWrite(g_DBKProvider, "ProviderRegistered", TraceLoggingLevel(TRACE_LEVEL_INFORMATION));
 	}
+
+	LogInfo("Loading BB");
+	NTSTATUS bbStatus = BBInitDriver(DriverObject);
+	if (!NT_SUCCESS(bbStatus))
+	{
+		LogError("Failed to load BB: 0x%08X", bbStatus);
+		return bbStatus;
+	}
+	LogInfo("BB loaded successfully");
 	
 	NTSTATUS        ntStatus;
 	PVOID           BufDriverString = NULL, BufDriverStringFormat = NULL, BufProcessEventString = NULL, BufThreadEventString = NULL;

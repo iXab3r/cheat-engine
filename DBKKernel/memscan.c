@@ -5,6 +5,8 @@
 #include <ntstrsafe.h>
 #include <intrin.h>
 
+#include "blackbone/Private.h"
+
 #ifndef PROCESS_VM_OPERATION
 #define PROCESS_VM_OPERATION 0x0008
 #endif
@@ -13,28 +15,6 @@
 #endif
 #ifndef PROCESS_VM_WRITE
 #define PROCESS_VM_WRITE 0x0020
-#endif
-
-// Forward declarations in case some WDK variants hide these prototypes
-#ifndef __DECL_MM_PROT_COPY
-#define __DECL_MM_PROT_COPY
-NTSYSAPI NTSTATUS NTAPI ZwProtectVirtualMemory(
-    HANDLE ProcessHandle,
-    PVOID *BaseAddress,
-    PSIZE_T RegionSize,
-    ULONG NewProtect,
-    PULONG OldProtect
-    );
-
-NTSYSAPI NTSTATUS NTAPI MmCopyVirtualMemory(
-    PEPROCESS FromProcess,
-    const VOID* FromAddress,
-    PEPROCESS ToProcess,
-    PVOID ToAddress,
-    SIZE_T BufferSize,
-    KPROCESSOR_MODE PreviousMode,
-    PSIZE_T NumberOfBytesCopied
-    );
 #endif
 
 #ifdef CETC
