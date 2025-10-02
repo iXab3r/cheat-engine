@@ -1,16 +1,35 @@
 ﻿#include "eautils.h"
 #include "logging.h"
 #include "blackbone/Private.h"
+#include "DBKDrvr.h"
 
 BOOLEAN gIsEyeAurasService;
 
-// Monitoring additions
 static HANDLE gMonitoredPidHandle = NULL; // stores PID value as handle
 static BOOLEAN gMonitorActive = FALSE;
 static HANDLE gMonitorThreadHandle = NULL;
 static PETHREAD gMonitorThreadObject = NULL;
 static KEVENT gMonitorStopEvent;
 static UNICODE_STRING gSavedRegistryPath = {0};
+static BOOLEAN g_DriverDisabled = FALSE;
+
+BOOLEAN IsDriverDisabled(void)
+{
+    return g_DriverDisabled;
+}
+
+NTSTATUS DisableDriverFunctionality(void)
+{
+    if (g_DriverDisabled)
+    {
+        LogInfo("Driver functionality is already disabled");
+        return STATUS_SUCCESS;
+    }
+
+    LogInfo("Disabling driver functionality (without unload)");
+    g_DriverDisabled = TRUE;
+    return STATUS_SUCCESS;
+}
 
 BOOLEAN isEyeAurasService(void)
 {
@@ -42,8 +61,16 @@ void stopMonitoring(void)
         KeSetEvent(&gMonitorStopEvent, IO_NO_INCREMENT, FALSE);
         if (gMonitorThreadObject)
         {
-            LogInfo("Awaiting for Monitor thread object");
-            //KeWaitForSingleObject(gMonitorThreadObject, Executive, KernelMode, FALSE, NULL);
+            LogInfo("Awaiting monitor thread termination");
+            PETHREAD currentThread = PsGetCurrentThread();
+            if (currentThread != gMonitorThreadObject)
+            {
+                KeWaitForSingleObject(gMonitorThreadObject, Executive, KernelMode, FALSE, NULL);
+            }
+            else
+            {
+                LogInfo("Stop requested from within the monitor thread; skipping wait to avoid deadlock");
+            }
             ObDereferenceObject(gMonitorThreadObject);
             gMonitorThreadObject = NULL;
         }
@@ -86,6 +113,39 @@ void initializeMonitoring(IN PUNICODE_STRING RegistryPath)
     }
 }
 
+// Dedicated unloader thread that initiates self-unload safely after monitor thread exits
+static VOID UnloaderThreadProc(PVOID Context)
+{
+    UNREFERENCED_PARAMETER(Context);
+    LogInfo("Unloader thread started");
+
+    if (gSavedRegistryPath.Buffer && gSavedRegistryPath.Length)
+    {
+        UNICODE_STRING us = { 0 };
+        us.Length = gSavedRegistryPath.Length;
+        us.MaximumLength = gSavedRegistryPath.Length + sizeof(WCHAR);
+        us.Buffer = (PWSTR)ExAllocatePool2(POOL_FLAG_PAGED, us.MaximumLength, BB_POOL_TAG);
+        if (us.Buffer)
+        {
+            RtlCopyMemory(us.Buffer, gSavedRegistryPath.Buffer, gSavedRegistryPath.Length);
+            us.Buffer[gSavedRegistryPath.Length / sizeof(WCHAR)] = L'\0';
+            NTSTATUS st = ZwUnloadDriver(&us);
+            LogInfo("ZwUnloadDriver returned: 0x%08X", st);
+            // Intentionally leaking 'us.Buffer' since the driver may be gone after unload
+        }
+        else
+        {
+            LogInfo("Unloader thread: allocation for registry path copy failed");
+        }
+    }
+    else
+    {
+        LogInfo("Unloader thread: saved registry path is not available");
+    }
+
+    PsTerminateSystemThread(STATUS_SUCCESS);
+}
+
 VOID monitorThreadProc(PVOID Context)
 {
     UNREFERENCED_PARAMETER(Context);
@@ -96,6 +156,8 @@ VOID monitorThreadProc(PVOID Context)
 
     for (;;)
     {
+        LogInfo("Running periodic check");
+
         NTSTATUS waitStatus = KeWaitForSingleObject(&gMonitorStopEvent, Executive, KernelMode, FALSE, &interval);
         if (waitStatus == STATUS_SUCCESS)
         {
@@ -115,13 +177,9 @@ VOID monitorThreadProc(PVOID Context)
             }
             else
             {
-                LogInfo("Monitored process no longer exists. Attempting to unload the driver.");
-                if (gSavedRegistryPath.Buffer && gSavedRegistryPath.Length)
-                {
-                    NTSTATUS us = ZwUnloadDriver(&gSavedRegistryPath);
-                    LogInfo("ZwUnloadDriver returned: 0x%08X", us);
-                }
-                break; // exit thread either way
+                LogInfo("Monitored process no longer exists. Disabling driver functionality.");
+                DisableDriverFunctionality();
+                break; // exit monitor thread
             }
         }
         else
@@ -137,39 +195,35 @@ VOID monitorThreadProc(PVOID Context)
 
 VOID startProcessMonitoring(void)
 {
-    if (gMonitoredPidHandle)
+    if (!gMonitoredPidHandle)
     {
-        LogInfo("Initializing monitoring for PID=%p", gMonitoredPidHandle);
-
-        LogWarn("Monitoring is temporarily disabled");
+        LogWarn("Monitoring could not be started - PID is not set");
         return;
+    }
+    
+    LogInfo("Initializing monitoring for PID=%p", gMonitoredPidHandle);
 
-
-        KeInitializeEvent(&gMonitorStopEvent, NotificationEvent, FALSE);
-        gMonitorActive = TRUE;
-        NTSTATUS th = PsCreateSystemThread(&gMonitorThreadHandle,
-                                           THREAD_ALL_ACCESS,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           monitorThreadProc,
-                                           NULL);
-        if (NT_SUCCESS(th))
+    KeInitializeEvent(&gMonitorStopEvent, NotificationEvent, FALSE);
+    gMonitorActive = TRUE;
+    NTSTATUS th = PsCreateSystemThread(&gMonitorThreadHandle,
+                                       THREAD_ALL_ACCESS,
+                                       NULL,
+                                       NULL,
+                                       NULL,
+                                       monitorThreadProc,
+                                       NULL);
+    if (NT_SUCCESS(th))
+    {
+        LogInfo("Monitoring thread was started: %p", gMonitoredPidHandle);
+        NTSTATUS orh = ObReferenceObjectByHandle(gMonitorThreadHandle, SYNCHRONIZE, PsThreadType, KernelMode,
+                                                 (PVOID*)&gMonitorThreadObject, NULL);
+        if (!NT_SUCCESS(orh))
         {
-            NTSTATUS orh = ObReferenceObjectByHandle(gMonitorThreadHandle, SYNCHRONIZE, *PsThreadType, KernelMode,
-                                                     (PVOID*)&gMonitorThreadObject, NULL);
-            if (!NT_SUCCESS(orh))
-            {
-                LogInfo("Failed to reference monitor thread object: 0x%08X", orh);
-            }
-        }
-        else
-        {
-            LogInfo("Failed to create monitor thread: 0x%08X", th);
+            LogInfo("Failed to reference monitor thread object: 0x%08X", orh);
         }
     }
     else
     {
-        LogWarn("Monitoring could not be started - PID is not set");
+        LogInfo("Failed to create monitor thread: 0x%08X", th);
     }
 }

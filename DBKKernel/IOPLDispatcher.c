@@ -313,8 +313,14 @@ Called if dbvm has loaded the driver. Use this to setup a fake irp
     return r;
 }
 
+#include "DBKDrvr.h"
 NTSTATUS DispatchIoctl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
+    if (IsDriverDisabled())
+    {
+        LogWarn("Rejecting Irp - driver is disabled");
+        return STATUS_DEVICE_NOT_READY;
+    }
     NTSTATUS ntStatus = STATUS_UNSUCCESSFUL;
 
     PIO_STACK_LOCATION irpStack = NULL;

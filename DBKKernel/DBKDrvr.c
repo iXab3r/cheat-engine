@@ -92,7 +92,6 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 
     HANDLE Ultimap2Handle;
 
-
     KernelCodeStepping = 0;
     KernelWritesIgnoreWP = 0;
 
@@ -140,7 +139,8 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
         if (ntStatus == STATUS_SUCCESS)
         {
             UNICODE_STRING A, B, C, D, P;
-            PKEY_VALUE_PARTIAL_INFORMATION bufA, bufB, bufC, bufD, bufP;
+            PKEY_VALUE_PARTIAL_INFORMATION bufDriverString, bufDeviceString, bufProcessEventString, bugThreadEventString
+                                           , bufPid;
             ULONG ActualSize;
 
             LogInfo("Opened the key");
@@ -154,28 +154,25 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
             BufThreadEventString = ExAllocatePool(
                 PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + DEFAULT_BUFFER_SIZE);
 
-            bufA = BufDriverString;
-            bufB = BufDeviceString;
-            bufC = BufProcessEventString;
-            bufD = BufThreadEventString;
+            bufDriverString = BufDriverString;
+            bufDeviceString = BufDeviceString;
+            bufProcessEventString = BufProcessEventString;
+            bugThreadEventString = BufThreadEventString;
 
             RtlInitUnicodeString(&A, L"A");
             RtlInitUnicodeString(&B, L"B");
             RtlInitUnicodeString(&C, L"C");
             RtlInitUnicodeString(&D, L"D");
-
-            if (isEyeAurasService())
-            {
-                RtlInitUnicodeString(&P, L"P");
-            }
+            RtlInitUnicodeString(&P, L"P");
 
             if (ntStatus == STATUS_SUCCESS)
             {
                 if (NT_SUCCESS(
-                    ZwQueryValueKey(reg, &A, KeyValuePartialInformation, bufA, sizeof(KEY_VALUE_PARTIAL_INFORMATION) +
+                    ZwQueryValueKey(reg, &A, KeyValuePartialInformation, bufDriverString, sizeof(
+                            KEY_VALUE_PARTIAL_INFORMATION) +
                         100, &ActualSize)))
                 {
-                    RtlInitUnicodeString(&uszDriverString, (PCWSTR)bufA->Data);
+                    RtlInitUnicodeString(&uszDriverString, (PCWSTR)bufDriverString->Data);
                 }
                 else
                 {
@@ -195,10 +192,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
             if (ntStatus == STATUS_SUCCESS)
             {
                 if (NT_SUCCESS(
-                    ZwQueryValueKey(reg, &B, KeyValuePartialInformation, bufB, sizeof(KEY_VALUE_PARTIAL_INFORMATION) +
+                    ZwQueryValueKey(reg, &B, KeyValuePartialInformation, bufDeviceString, sizeof(
+                            KEY_VALUE_PARTIAL_INFORMATION) +
                         100, &ActualSize)))
                 {
-                    RtlInitUnicodeString(&uszDeviceString, (PCWSTR)bufB->Data);
+                    RtlInitUnicodeString(&uszDeviceString, (PCWSTR)bufDeviceString->Data);
                 }
                 else
                 {
@@ -218,10 +216,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
             if (ntStatus == STATUS_SUCCESS)
             {
                 if (NT_SUCCESS(
-                    ZwQueryValueKey(reg, &C, KeyValuePartialInformation, bufC, sizeof(KEY_VALUE_PARTIAL_INFORMATION) +
+                    ZwQueryValueKey(reg, &C, KeyValuePartialInformation, bufProcessEventString, sizeof(
+                            KEY_VALUE_PARTIAL_INFORMATION) +
                         100, &ActualSize)))
                 {
-                    RtlInitUnicodeString(&uszProcessEventString, (PCWSTR)bufC->Data);
+                    RtlInitUnicodeString(&uszProcessEventString, (PCWSTR)bufProcessEventString->Data);
                 }
                 else
                 {
@@ -231,10 +230,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
             if (ntStatus == STATUS_SUCCESS)
             {
                 if (NT_SUCCESS(
-                    ZwQueryValueKey(reg, &D, KeyValuePartialInformation, bufD, sizeof(KEY_VALUE_PARTIAL_INFORMATION) +
+                    ZwQueryValueKey(reg, &D, KeyValuePartialInformation, bugThreadEventString, sizeof(
+                            KEY_VALUE_PARTIAL_INFORMATION) +
                         100, &ActualSize)))
                 {
-                    RtlInitUnicodeString(&uszThreadEventString, (PCWSTR)bufD->Data);
+                    RtlInitUnicodeString(&uszThreadEventString, (PCWSTR)bugThreadEventString->Data);
                 }
                 else
                 {
@@ -242,36 +242,32 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
                 }
             }
 
+            ULONGLONG pid64 = 0;
             if (ntStatus == STATUS_SUCCESS && isEyeAurasService())
             {
-                bufP = (PKEY_VALUE_PARTIAL_INFORMATION)ExAllocatePool(
+                bufPid = (PKEY_VALUE_PARTIAL_INFORMATION)ExAllocatePool(
                     PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONGLONG));
-                if (bufP)
+                if (bufPid)
                 {
                     if (NT_SUCCESS(
-                        ZwQueryValueKey(reg, &P, KeyValuePartialInformation, bufP, sizeof(KEY_VALUE_PARTIAL_INFORMATION)
+                        ZwQueryValueKey(reg, &P, KeyValuePartialInformation, bufPid, sizeof(
+                                KEY_VALUE_PARTIAL_INFORMATION)
                             + sizeof(ULONGLONG), &ActualSize)))
                     {
-                        ULONGLONG pid64 = 0;
-                        if (bufP->Type == REG_DWORD && bufP->DataLength >= sizeof(ULONG))
+                        if (bufPid->Type == REG_DWORD && bufPid->DataLength >= sizeof(ULONG))
                         {
-                            pid64 = *(ULONG*)bufP->Data;
+                            pid64 = *(ULONG*)bufPid->Data;
                         }
-                        else if (bufP->Type == REG_QWORD && bufP->DataLength >= sizeof(ULONGLONG))
+                        else if (bufPid->Type == REG_QWORD && bufPid->DataLength >= sizeof(ULONGLONG))
                         {
-                            pid64 = *(ULONGLONG*)bufP->Data;
+                            pid64 = *(ULONGLONG*)bufPid->Data;
                         }
                         else
                         {
-                            LogInfo("Unsupported registry type for P: %u", bufP->Type);
+                            LogInfo("Unsupported registry type for P: %u", bufPid->Type);
                         }
-                        setMonitoringPID((HANDLE)pid64);
                     }
-                    else
-                    {
-                        LogInfo("Registry value 'P' not found or unreadable; monitoring disabled");
-                    }
-                    ExFreePool(bufP);
+                    ExFreePool(bufPid);
                 }
                 else
                 {
@@ -283,6 +279,12 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
             LogInfo("DeviceString=%S", uszDeviceString.Buffer);
             LogInfo("ProcessEventString=%S", uszProcessEventString.Buffer);
             LogInfo("ThreadEventString=%S", uszThreadEventString.Buffer);
+            LogInfo("PID=%p", (HANDLE)pid64);
+
+            if (pid64)
+            {
+                setMonitoringPID((HANDLE)pid64);
+            }
 
             if (ntStatus == STATUS_SUCCESS)
             {
@@ -290,13 +292,16 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
             }
             else
             {
-                ExFreePool(bufA);
-                ExFreePool(bufB);
-                ExFreePool(bufC);
-                ExFreePool(bufD);
+                ExFreePool(bufDriverString);
+                ExFreePool(bufDeviceString);
+                ExFreePool(bufProcessEventString);
+                ExFreePool(bugThreadEventString);
 
                 LogInfo("Failed reading the value");
-                ZwClose(reg);
+                if (!NT_SUCCESS(ZwClose(reg)))
+                {
+                    LogInfo("Failed close registry");
+                }
                 return STATUS_UNSUCCESSFUL;
             }
         }
@@ -308,6 +313,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
     }
     else
     {
+        LogInfo("Registry path is not set - loaded by DBVM");
         loadedbydbvm = TRUE;
     }
 
@@ -315,11 +321,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 
     if (!loadedbydbvm)
     {
-        // Point uszDriverString at the driver name
-#ifndef CETC
-
-
-        // Create and initialize device object
+        LogInfo("Creating the device %S", uszDriverString.Buffer);
         ntStatus = IoCreateDevice(DriverObject,
                                   0,
                                   &uszDriverString,
@@ -328,9 +330,13 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
                                   FALSE,
                                   &pDeviceObject);
 
-        if (ntStatus != STATUS_SUCCESS)
+        if (ntStatus == STATUS_SUCCESS)
         {
-            //LogInfo("IoCreateDevice failed");
+            LogInfo("IoCreateDevice succeeded");
+        }
+        else
+        {
+            LogInfo("IoCreateDevice failed");
             ExFreePool(BufDriverString);
             ExFreePool(BufDriverStringFormat);
             ExFreePool(BufDeviceString);
@@ -338,15 +344,15 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
             ExFreePool(BufProcessEventString);
             ExFreePool(BufThreadEventString);
 
-
             if (reg)
+            {
                 ZwClose(reg);
+            }
 
             return ntStatus;
         }
 
         // Point uszDeviceString at the device name
-
         // Create symbolic link to the user-visible name
         LogInfo("Creating symbolic link, deviceString: %S, driverString: %S", uszDeviceString.Buffer,
                 uszDriverString.Buffer);
@@ -365,7 +371,6 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
             ExFreePool(BufProcessEventString);
             ExFreePool(BufThreadEventString);
 
-
             if (reg)
             {
                 ZwClose(reg);
@@ -373,13 +378,9 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 
             return ntStatus;
         }
-
-#endif
     }
 
     //when loaded by dbvm driver object is 'valid' so store the function addresses
-
-
     LogInfo("DriverObject=%p", DriverObject);
 
     // Load structure to point to IRP handlers...
@@ -388,13 +389,16 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = DispatchClose;
 
     if (loadedbydbvm)
+    {
         DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = (PDRIVER_DISPATCH)DispatchIoctlDBVM;
+    }
     else
+    {
         DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DispatchIoctl;
+    }
 
     startProcessMonitoring();
 
-    //Processlist init
 #ifndef CETC
     ProcessEventCount = 0;
     ExInitializeResourceLite(&ProcesslistR);
@@ -518,68 +522,34 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
         }
     }
 
-#ifdef DEBUG1
-    {
-        APIC y;
-
-        DebugStackState x;
-        LogInfo("offset of LBR_Count=%d", (UINT_PTR)&x.LBR_Count - (UINT_PTR)&x);
-
-
-        LogInfo("Testing forEachCpu(...)");
-        forEachCpu(TestDPC, NULL, NULL, NULL, NULL);
-
-        LogInfo("Testing forEachCpuAsync(...)");
-        forEachCpuAsync(TestDPC, NULL, NULL, NULL, NULL);
-
-        LogInfo("Testing forEachCpuPassive(...)");
-        forEachCpuPassive(TestPassive, 0);
-
-        LogInfo("LVT_Performance_Monitor=%x", (UINT_PTR)&y.LVT_Performance_Monitor - (UINT_PTR)&y);
-    }
-#endif
-
-#ifdef DEBUG2
-    LogInfo("No exceptions test:");
-    if (NoExceptions_Enter())
-    {
-        int o = 45678;
-        int x = 0, r = 0;
-        //r=NoExceptions_CopyMemory(&x, &o, sizeof(x));
-
-        r = NoExceptions_CopyMemory(&x, (PVOID)0, sizeof(x));
-
-        LogInfo("o=%d x=%d r=%d", o, x, r);
-
-
-        LogInfo("Leaving NoExceptions mode");
-        NoExceptions_Leave();
-    }
-#endif
-
-
     RtlInitUnicodeString(&temp, L"PsSuspendProcess");
     PsSuspendProcess = (PSSUSPENDPROCESS)MmGetSystemRoutineAddress(&temp);
 
     RtlInitUnicodeString(&temp, L"PsResumeProcess");
     PsResumeProcess = (PSSUSPENDPROCESS)MmGetSystemRoutineAddress(&temp);
 
-
     return STATUS_SUCCESS;
 }
 
 
-NTSTATUS DispatchCreate(IN PDEVICE_OBJECT DeviceObject,
-                        IN PIRP Irp)
+NTSTATUS DispatchCreate(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
-    // Check for SeDebugPrivilege. (So only processes with admin rights can use it)
+    LogInfo("DBK: %s: Creating Dispatch", __FUNCTION__);
+    if (IsDriverDisabled())
+    {
+        LogInfo("DBK: %s: Ignoring DispatchCreate request - driver is disabled", __FUNCTION__);
+        Irp->IoStatus.Status = STATUS_DEVICE_NOT_READY;
+        Irp->IoStatus.Information = 0;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return Irp->IoStatus.Status;
+    }
 
+    // Check for SeDebugPrivilege. (So only processes with admin rights can use it)
     LUID sedebugprivUID;
     sedebugprivUID.LowPart = SE_DEBUG_PRIVILEGE;
     sedebugprivUID.HighPart = 0;
 
     Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
-
 
     if (SeSinglePrivilegeCheck(sedebugprivUID, UserMode))
     {
@@ -607,9 +577,19 @@ NTSTATUS DispatchCreate(IN PDEVICE_OBJECT DeviceObject,
 }
 
 
-NTSTATUS DispatchClose(IN PDEVICE_OBJECT DeviceObject,
-                       IN PIRP Irp)
+NTSTATUS DispatchClose(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
+    LogInfo("DBK: %s: Closing Dispatch", __FUNCTION__);
+
+    if (IsDriverDisabled())
+    {
+        LogInfo("DBK: %s: Ignoring DispatchClose request - driver is disabled", __FUNCTION__);
+        Irp->IoStatus.Status = STATUS_DEVICE_NOT_READY;
+        Irp->IoStatus.Information = 0;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return Irp->IoStatus.Status;
+    }
+
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
 
@@ -619,12 +599,13 @@ NTSTATUS DispatchClose(IN PDEVICE_OBJECT DeviceObject,
 
 void UnloadDriver(PDRIVER_OBJECT DriverObject)
 {
+    LogInfo("DBK: %s: Unloading the driver", __FUNCTION__);
     stopMonitoring();
     cleanupDBVM();
 
     if (!debugger_stopDebugging())
     {
-        LogInfo("Can not unload the driver because of debugger");
+        LogInfo("DBK: %s: Can not unload the driver because of debugger", __FUNCTION__);
         return; //
     }
 
@@ -652,7 +633,7 @@ void UnloadDriver(PDRIVER_OBJECT DriverObject)
         RtlInitUnicodeString(&temp, L"ObOpenObjectByName");
         x = MmGetSystemRoutineAddress(&temp);
 
-        LogInfo("ObOpenObjectByName=%p", x);
+        LogInfo("DBK: %s: ObOpenObjectByName=%p", __FUNCTION__, x);
 
 
         if ((PsRemoveCreateThreadNotifyRoutine2) && (PsRemoveLoadImageNotifyRoutine2))
@@ -684,28 +665,16 @@ void UnloadDriver(PDRIVER_OBJECT DriverObject)
 
     IoDeleteDevice(DriverObject->DeviceObject);
 
-    // Unregister TraceLogging provider on unload
     DBKTraceLoggingUnregister();
 
-#ifdef CETC
-#ifndef CETC_RELEASE
-    UnloadCETC(); //not possible in the final build
-#endif
-#endif
-
-#ifndef CETC_RELEASE
     LogInfo("DeviceString=%S", uszDeviceString.Buffer);
-    {
-        NTSTATUS r = IoDeleteSymbolicLink(&uszDeviceString);
-        LogInfo("IoDeleteSymbolicLink: %x", r);
-    }
+    NTSTATUS r = IoDeleteSymbolicLink(&uszDeviceString);
+    LogInfo("IoDeleteSymbolicLink: %x", r);
     ExFreePool(BufDeviceString);
-#endif
 
     CleanProcessList();
 
     ExDeleteResourceLite(&ProcesslistR);
-
     RtlZeroMemory(&ProcesslistR, sizeof(ProcesslistR));
 
 #if (NTDDI_VERSION >= NTDDI_VISTA)
