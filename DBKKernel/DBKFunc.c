@@ -167,6 +167,33 @@ calls a specified dpcfunction for each cpu on the system
 }
 
 
+
+BOOLEAN ExtractServiceNameFromRegistryPath(
+	_In_ PUNICODE_STRING RegistryPath,
+	_Out_ UNICODE_STRING* ServiceName
+)
+{
+	if (!RegistryPath || !RegistryPath->Buffer || RegistryPath->Length == 0)
+		return FALSE;
+
+	// Find the last backslash
+	for (USHORT i = (USHORT)(RegistryPath->Length / sizeof(WCHAR)); i > 0; --i)
+	{
+		if (RegistryPath->Buffer[i - 1] == L'\\')
+		{
+			USHORT start = i;
+			USHORT len = (USHORT)((RegistryPath->Length / sizeof(WCHAR)) - start);
+
+			ServiceName->Buffer = &RegistryPath->Buffer[start];
+			ServiceName->Length = len * sizeof(WCHAR);
+			ServiceName->MaximumLength = ServiceName->Length;
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
 void forEachCpuAsync(PKDEFERRED_ROUTINE dpcfunction, PVOID DeferredContext, PVOID  SystemArgument1, PVOID  SystemArgument2, OPTIONAL PPREDPC_CALLBACK preDPCCallback)
 /*
 calls a specified dpcfunction for each cpu on the system

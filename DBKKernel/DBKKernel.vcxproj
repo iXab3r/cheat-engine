@@ -327,6 +327,7 @@ makecab /f "$(ProjectDir)\dea64.ddf"
     <ClCompile Include="DBKFunc.c" />
     <ClCompile Include="debugger.c" />
     <ClCompile Include="deepkernel.c" />
+    <ClCompile Include="eautils.c" />
     <ClCompile Include="inject.c" />
     <ClCompile Include="interruptHook.c" />
     <ClCompile Include="IOPLDispatcher.c" />
@@ -342,7 +343,6 @@ makecab /f "$(ProjectDir)\dea64.ddf"
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release without sig|Win32'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="syscalls.c" />
     <ClCompile Include="threads.c" />
     <ClCompile Include="ultimap.c" />
     <ClCompile Include="ultimap2.c" />
@@ -375,6 +375,7 @@ makecab /f "$(ProjectDir)\dea64.ddf"
     <ClInclude Include="DBKFunc.h" />
     <ClInclude Include="debugger.h" />
     <ClInclude Include="deepkernel.h" />
+    <ClInclude Include="eautils.h" />
     <ClInclude Include="extradefines.h" />
     <ClInclude Include="extraimports.h" />
     <ClInclude Include="inject.h" />
@@ -386,7 +387,6 @@ makecab /f "$(ProjectDir)\dea64.ddf"
     <ClInclude Include="noexceptions.h" />
     <ClInclude Include="processlist.h" />
     <ClInclude Include="sigcheck.h" />
-    <ClInclude Include="syscalls.h" />
     <ClInclude Include="tdiwrapper.h" />
     <ClInclude Include="threads.h" />
     <ClInclude Include="ultimap.h" />
@@ -469,9 +469,6 @@ makecab /f "$(ProjectDir)\dea64.ddf"
   <ItemGroup>
     <None Include="blackbone\packages.config" />
     <None Include="dea64.ddf" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="PERFVIEW.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

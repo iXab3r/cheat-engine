@@ -15,6 +15,7 @@
 
 #include "interruptHook.h"
 #include "debugger.h"
+#include "eautils.h"
 #include "inject.h"
 
 #include "vmxhelper.h"
@@ -1769,8 +1770,9 @@ NTSTATUS DispatchIoctl(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 
     case IOCTL_CE_GETVERSION:
         {
-            LogInfo("IOCTL_CE_GETVERSION. Version=%d", dbkversion);
-            *(PULONG)Irp->AssociatedIrp.SystemBuffer = dbkversion;
+            ULONG version = isEyeAurasService() ? eadbkversion : dbkversion;
+            LogInfo("[IOCTL_CE_GETVERSION] Version=%d (isEA: %d)", version, isEyeAurasService());
+            *(PULONG)Irp->AssociatedIrp.SystemBuffer = version;
             ntStatus = STATUS_SUCCESS;
             break;
         }

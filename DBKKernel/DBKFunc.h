@@ -18,6 +18,11 @@ int _fltused;
 typedef VOID F(UINT_PTR param);
 typedef F *PF;
 
+BOOLEAN ExtractServiceNameFromRegistryPath(
+	_In_ PUNICODE_STRING RegistryPath,
+	_Out_ UNICODE_STRING* ServiceName
+);
+
 typedef VOID PREDPC_CALLBACK(CCHAR cpunr, PKDEFERRED_ROUTINE Dpc, PVOID DeferredContext, PVOID *SystemArgument1, PVOID *SystemArgument2);
 
 typedef PREDPC_CALLBACK *PPREDPC_CALLBACK;

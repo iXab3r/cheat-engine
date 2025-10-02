@@ -9,7 +9,7 @@
 //#define DPRINT(...)
 //#endif
 
-#define BB_POOL_TAG 'enoB'
+#define BB_POOL_TAG 'EABB'
 
 #define ObpAccessProtectCloseBit 0x2000000
 
@@ -212,7 +212,7 @@ typedef struct _DYNAMIC_DATA
 	ULONG KExecOpt;         // KPROCESS::ExecuteOptions
 	ULONG Protection;       // EPROCESS::Protection
 	ULONG EProcessFlags2;   // EPROCESS::Flags2
-	ULONG ObjTable;         // EPROCESS::ObjectTable
+	ULONG ObjectTable;         // EPROCESS::ObjectTable
 	ULONG VadRoot;          // EPROCESS::VadRoot
 	ULONG NtProtectIndex;   // NtProtectVirtualMemory SSDT index
 	ULONG NtCreateThdExIndex; // NtCreateThreadEx SSDT index
@@ -253,7 +253,7 @@ static VOID BBPrintDynamicData(_In_ const DYNAMIC_DATA* dd)
 	// EPROCESS/KPROCESS related offsets and indices
 	DPRINT("  KExecOpt=0x%lX, Protection=0x%lX, EProcessFlags2=0x%lX",
 		dd->KExecOpt, dd->Protection, dd->EProcessFlags2);
-	DPRINT("  ObjTable=0x%lX, VadRoot=0x%lX", dd->ObjTable, dd->VadRoot);
+	DPRINT("  ObjTable=0x%lX, VadRoot=0x%lX", dd->ObjectTable, dd->VadRoot);
 
 	// SSDT indices
 	DPRINT("  NtProtectIndex=%luX, NtCreateThdExIndex=%luX, NtTermThdIndex=%luX",

@@ -221,7 +221,7 @@ NTSTATUS BBGrantAccess(IN PHANDLE_GRANT_ACCESS pAccess)
 	PEPROCESS pProcess = NULL;
 
 	// Validate dynamic offset
-	if (dynData.ObjTable == 0)
+	if (dynData.ObjectTable == 0)
 	{
 		DPRINT("BlackBone: %s: Invalid ObjTable address", __FUNCTION__);
 		return STATUS_INVALID_ADDRESS;
@@ -233,7 +233,7 @@ NTSTATUS BBGrantAccess(IN PHANDLE_GRANT_ACCESS pAccess)
 
 	if (NT_SUCCESS(status))
 	{
-		PHANDLE_TABLE pTable = *(PHANDLE_TABLE*)((PUCHAR)pProcess + dynData.ObjTable);
+		PHANDLE_TABLE pTable = *(PHANDLE_TABLE*)((PUCHAR)pProcess + dynData.ObjectTable);
 		BOOLEAN found = ExEnumHandleTable(pTable, &BBHandleCallback, pAccess, NULL);
 		if (found == FALSE)
 			status = STATUS_NOT_FOUND;
@@ -258,7 +258,7 @@ NTSTATUS BBUnlinkHandleTable(IN PUNLINK_HTABLE pUnlink)
 	PEPROCESS pProcess = NULL;
 
 	// Validate dynamic offset
-	if (dynData.ExRemoveTable == 0 || dynData.ObjTable == 0)
+	if (dynData.ExRemoveTable == 0 || dynData.ObjectTable == 0)
 	{
 		DPRINT("BlackBone: %s: Invalid ExRemoveTable/ObjTable address", __FUNCTION__);
 		return STATUS_INVALID_ADDRESS;
@@ -274,7 +274,7 @@ NTSTATUS BBUnlinkHandleTable(IN PUNLINK_HTABLE pUnlink)
 	status = PsLookupProcessByProcessId((HANDLE)pUnlink->pid, &pProcess);
 	if (NT_SUCCESS(status))
 	{
-		PHANDLE_TABLE pTable = *(PHANDLE_TABLE*)((PUCHAR)pProcess + dynData.ObjTable);
+		PHANDLE_TABLE pTable = *(PHANDLE_TABLE*)((PUCHAR)pProcess + dynData.ObjectTable);
 
 		// Unlink process handle table
 		fnExRemoveHandleTable ExRemoveHandleTable = (fnExRemoveHandleTable)((ULONG_PTR)GetKernelBase(NULL) + dynData.ExRemoveTable);
