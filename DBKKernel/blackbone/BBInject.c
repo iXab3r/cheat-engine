@@ -548,7 +548,9 @@ NTSTATUS BBApcInject(IN PINJECT_BUFFER pUserBuf, IN PEPROCESS pProcess, IN ULONG
 	}
 
 	if (pThread)
+	{
 		ObDereferenceObject(pThread);
+	}
 
 	return status;
 }

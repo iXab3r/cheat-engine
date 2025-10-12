@@ -817,3 +817,80 @@ NTSTATUS NTAPI ZwTerminateThread(IN HANDLE ThreadHandle, IN NTSTATUS ExitStatus)
 
 	return status;
 }
+NTSTATUS
+BuildNtPathFromInput(
+    _In_  PUNICODE_STRING InputPath,
+    _Out_ PUNICODE_STRING OutNtPath,
+    _Out_ PBOOLEAN OutUseRtlFree
+)
+{
+    if (!InputPath || !OutNtPath || !OutUseRtlFree)
+        return STATUS_INVALID_PARAMETER;
+
+    if (KeGetCurrentIrql() != PASSIVE_LEVEL)
+        return STATUS_INVALID_DEVICE_STATE;
+
+    RtlZeroMemory(OutNtPath, sizeof(*OutNtPath));
+    *OutUseRtlFree = FALSE;
+
+    if (InputPath->Length == 0 || InputPath->Buffer == NULL)
+        return STATUS_OBJECT_PATH_SYNTAX_BAD;
+
+    const WCHAR *src = InputPath->Buffer;
+    SIZE_T srcLenCh = InputPath->Length / sizeof(WCHAR);
+
+    //
+    // Heuristic classification
+    //
+    BOOLEAN isNt = FALSE;
+
+    // NT paths usually start with '\' ( \??\ , \Device\ , \SystemRoot\ , etc. )
+    if (src[0] == L'\\')
+        isNt = TRUE;
+    else if (srcLenCh >= 2 && src[0] == L'\\' && src[1] == L'\\')
+        isNt = FALSE;
+    else if (srcLenCh >= 2 && src[1] == L':')
+        isNt = FALSE;
+
+    SIZE_T prefixLenCh = 0;
+    const WCHAR prefix[] = L"\\??\\";
+    if (!isNt)
+        prefixLenCh = RTL_NUMBER_OF(prefix) - 1;
+
+    SIZE_T totalCh = prefixLenCh + srcLenCh;
+    SIZE_T allocBytes = (totalCh + 1) * sizeof(WCHAR);
+
+    PWCHAR buf = (PWCHAR)ExAllocatePool2(POOL_FLAG_PAGED, allocBytes, BB_POOL_TAG);
+    if (!buf)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    PWCHAR p = buf;
+    if (prefixLenCh)
+    {
+        RtlCopyMemory(p, prefix, prefixLenCh * sizeof(WCHAR));
+        p += prefixLenCh;
+    }
+    RtlCopyMemory(p, src, srcLenCh * sizeof(WCHAR));
+    buf[totalCh] = L'\0';
+
+    OutNtPath->Buffer = buf;
+    OutNtPath->Length = (USHORT)(totalCh * sizeof(WCHAR));
+    OutNtPath->MaximumLength = (USHORT)allocBytes;
+    *OutUseRtlFree = FALSE;  // always ExFreePoolWithTag
+
+    return STATUS_SUCCESS;
+}
+
+VOID
+FreeBuiltNtPath(
+    _Inout_ PUNICODE_STRING NtPath,
+    _In_ BOOLEAN UseRtlFree
+)
+{
+    UNREFERENCED_PARAMETER(UseRtlFree);
+    if (NtPath && NtPath->Buffer)
+    {
+        ExFreePoolWithTag(NtPath->Buffer, BB_POOL_TAG);
+        RtlZeroMemory(NtPath, sizeof(*NtPath));
+    }
+}

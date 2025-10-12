@@ -5,6 +5,7 @@
 #include "Utils.h"
 #include "apiset.h"
 #include <ntstrsafe.h>
+#include <ntddk.h>
 
 #define IMAGE32(hdr) (hdr->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
 #define IMAGE64(hdr) (hdr->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
@@ -372,6 +373,8 @@ NTSTATUS BBMapUserImage(
 
 	return status;
 }
+
+
 
 /// <summary>
 /// Map new module or return existing
@@ -1548,63 +1551,112 @@ NTSTATUS BBCreateCookie(IN PVOID imageBase)
 /// <param name="path">Image path</param>
 /// <param name="pBase">Mapped base</param>
 /// <returns>Status code</returns>
-NTSTATUS BBLoadLocalImage(IN PUNICODE_STRING path, OUT PVOID* pBase)
+// Revised BBLoadLocalImage: uses BuildNtPathFromInput to normalize the path,
+// opens file, reads into pool and returns pointer in *pBase.
+NTSTATUS
+BBLoadLocalImage(
+    IN PUNICODE_STRING path,   // may be NT or DOS
+    OUT PVOID* pBase
+)
 {
-	NTSTATUS status = STATUS_SUCCESS;
-	HANDLE hFile = NULL;
-	OBJECT_ATTRIBUTES obAttr = { 0 };
-	IO_STATUS_BLOCK statusBlock = { 0 };
-	FILE_STANDARD_INFORMATION fileInfo = { 0 };
+    NTSTATUS status = STATUS_SUCCESS;
+    BOOLEAN useRtlFree = FALSE;
+    UNICODE_STRING ntPath = { 0 };
+    HANDLE hFile = NULL;
+    OBJECT_ATTRIBUTES obAttr;
+    IO_STATUS_BLOCK iosb;
+    FILE_STANDARD_INFORMATION fileInfo = { 0 };
+    LARGE_INTEGER fileSize = { 0 };
+    PVOID buffer = NULL;
 
-	ASSERT(path != NULL && pBase != NULL);
-	if (path == NULL || pBase == NULL)
-	{
-		LogInfo("BlackBone: %s: No image path or output base", __FUNCTION__);
-		return STATUS_INVALID_PARAMETER;
-	}
+    if (path == NULL || pBase == NULL)
+        return STATUS_INVALID_PARAMETER;
 
-	InitializeObjectAttributes(&obAttr, path, OBJ_KERNEL_HANDLE, NULL, NULL);
+    if (KeGetCurrentIrql() != PASSIVE_LEVEL) {
+        LogError("BlackBone: %s: must be called at PASSIVE_LEVEL", __FUNCTION__);
+        return STATUS_INVALID_DEVICE_STATE;
+    }
 
-	// Open image file
-	status = ZwCreateFile(
-		&hFile, FILE_READ_DATA | SYNCHRONIZE, &obAttr,
-		&statusBlock, NULL, FILE_ATTRIBUTE_NORMAL,
-		FILE_SHARE_READ, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0
-	);
+    status = BuildNtPathFromInput(path, &ntPath, &useRtlFree);
+    if (!NT_SUCCESS(status)) {
+        LogError("BlackBone: %s: failed to build NT path (0x%08X)", __FUNCTION__, status);
+        return status;
+    }
 
-	if (!NT_SUCCESS(status))
-	{
-		LogInfo("BlackBone: %s: Failed to open '%wZ'. Status: 0x%X", __FUNCTION__, path, status);
-		return status;
-	}
+    InitializeObjectAttributes(&obAttr, &ntPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+	LogInfo("BlackBone: %s: Opening image at NT path '%wZ'", __FUNCTION__, &ntPath);
 
-	// Allocate memory for file contents
-	status = ZwQueryInformationFile(hFile, &statusBlock, &fileInfo, sizeof(fileInfo), FileStandardInformation);
-	if (NT_SUCCESS(status))
-		*pBase = ExAllocatePool2(POOL_FLAG_PAGED, fileInfo.EndOfFile.QuadPart, BB_POOL_TAG);
-	else
-		LogInfo("BlackBone: %s: Failed to get '%wZ' size. Status: 0x%X", __FUNCTION__, path, status);
+    status = ZwCreateFile(
+        &hFile,
+        FILE_READ_DATA | SYNCHRONIZE,
+        &obAttr,
+        &iosb,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ,
+        FILE_OPEN,
+        FILE_SYNCHRONOUS_IO_NONALERT,
+        NULL,
+        0
+    );
 
-	// Get file contents
-	status = ZwReadFile(hFile, NULL, NULL, NULL, &statusBlock, *pBase, fileInfo.EndOfFile.LowPart, NULL, NULL);
-	if (NT_SUCCESS(status))
-	{
-		PIMAGE_NT_HEADERS pNTHeader = RtlImageNtHeader(*pBase);
-		if (!pNTHeader)
-		{
-			LogInfo("BlackBone: %s: Failed to obtaint NT Header for '%wZ'", __FUNCTION__, path);
-			status = STATUS_INVALID_IMAGE_FORMAT;
-		}
-	}
-	else
-		LogInfo("BlackBone: %s: Failed to read '%wZ'. Status: 0x%X", __FUNCTION__, path, status);
+    if (!NT_SUCCESS(status)) {
+        LogInfo("BlackBone: %s: Failed to open '%wZ'. Status: 0x%X", __FUNCTION__, &ntPath, status);
+        FreeBuiltNtPath(&ntPath, useRtlFree);
+        return status;
+    }
 
-	ZwClose(hFile);
+    status = ZwQueryInformationFile(hFile, &iosb, &fileInfo, sizeof(fileInfo), FileStandardInformation);
+    if (!NT_SUCCESS(status)) {
+        LogInfo("BlackBone: %s: Failed to get '%wZ' size. Status: 0x%X", __FUNCTION__, &ntPath, status);
+        ZwClose(hFile);
+        FreeBuiltNtPath(&ntPath, useRtlFree);
+        return status;
+    }
 
-	if (!NT_SUCCESS(status) && *pBase)
-		ExFreePoolWithTag(*pBase, BB_POOL_TAG);
+    // Validate file size (avoid huge allocations)
+    fileSize = fileInfo.EndOfFile;
+    if (fileSize.QuadPart == 0 || fileSize.QuadPart > 0x80000000) { // arbitrary 2GB cap; adjust as needed
+        LogInfo("BlackBone: %s: suspicious file size %llu for '%wZ'", __FUNCTION__, fileSize.QuadPart, &ntPath);
+        ZwClose(hFile);
+        FreeBuiltNtPath(&ntPath, useRtlFree);
+        return STATUS_INVALID_PARAMETER;
+    }
 
-	return status;
+    // allocate pool for file contents (paged OK if you won't access at DISPATCH_LEVEL)
+    buffer = ExAllocatePool2(POOL_FLAG_PAGED, (SIZE_T)fileSize.QuadPart, BB_POOL_TAG);
+    if (!buffer) {
+        LogInfo("BlackBone: %s: failed to allocate pool for '%wZ'", __FUNCTION__, &ntPath);
+        ZwClose(hFile);
+        FreeBuiltNtPath(&ntPath, useRtlFree);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    // Read the file synchronously
+    status = ZwReadFile(hFile, NULL, NULL, NULL, &iosb, buffer, (ULONG)fileSize.LowPart, NULL, NULL);
+    if (!NT_SUCCESS(status)) {
+        LogInfo("BlackBone: %s: Failed to read '%wZ'. Status: 0x%X", __FUNCTION__, &ntPath, status);
+        ExFreePoolWithTag(buffer, BB_POOL_TAG);
+        ZwClose(hFile);
+        FreeBuiltNtPath(&ntPath, useRtlFree);
+        return status;
+    }
+
+    // Quick sanity check for image header
+    if (!RtlImageNtHeader(buffer)) {
+        LogInfo("BlackBone: %s: Failed to obtain NT Header for '%wZ'", __FUNCTION__, &ntPath);
+        ExFreePoolWithTag(buffer, BB_POOL_TAG);
+        ZwClose(hFile);
+        FreeBuiltNtPath(&ntPath, useRtlFree);
+        return STATUS_INVALID_IMAGE_FORMAT;
+    }
+
+    // Success: return buffer
+    *pBase = buffer;
+
+    ZwClose(hFile);
+    FreeBuiltNtPath(&ntPath, useRtlFree);
+    return STATUS_SUCCESS;
 }
 
 /// <summary>

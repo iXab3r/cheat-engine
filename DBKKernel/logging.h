@@ -191,3 +191,4 @@ static LONG WpmSehLogFilter(_In_ EXCEPTION_POINTERS* ep)
 
     return EXCEPTION_EXECUTE_HANDLER;
 }
+

@@ -418,3 +418,40 @@ NTSTATUS InitializeNtSyscalls(void);
 /// Looks up syscall index by name, InitializeNtSyscalls must be called beforehand
 /// </summary>
 ULONG GetNtSyscallIndex(_In_ PCSTR SyscallName);
+
+typedef struct _RTLP_CURDIR_REF
+{
+	LONG RefCount;
+	HANDLE Handle;
+} RTLP_CURDIR_REF, *PRTLP_CURDIR_REF;
+
+typedef struct _RTL_RELATIVE_NAME_U
+{
+	UNICODE_STRING RelativeName;
+	HANDLE ContainingDirectory;
+	PRTLP_CURDIR_REF CurDirRef;
+} RTL_RELATIVE_NAME_U, *PRTL_RELATIVE_NAME_U;
+
+// Build an NT-style UNICODE_STRING from the input.
+// If the input already looks like an NT path (starts with '\'), we allocate pool
+// and copy it. If it's a DOS path (starts with drive letter), we call RTL convert.
+// On success:
+//  - *OutNtPath is initialized and valid
+//  - *OutUseRtlFree == TRUE  -> call RtlFreeUnicodeString(OutNtPath) to free
+//  - *OutUseRtlFree == FALSE -> call ExFreePoolWithTag(OutNtPath->Buffer, tag) to free
+// Caller must free according to OutUseRtlFree on both success and failure paths where allocation happened.
+//
+// Must be called at PASSIVE_LEVEL.
+NTSTATUS
+BuildNtPathFromInput(
+	_In_ PUNICODE_STRING InputPath,
+	_Out_ PUNICODE_STRING OutNtPath,
+	_Out_ PBOOLEAN OutUseRtlFree
+);
+
+// Free the OutNtPath allocated by BuildNtPathFromInput according to the flag
+VOID
+FreeBuiltNtPath(
+	_Inout_ PUNICODE_STRING NtPath,
+	_In_ BOOLEAN UseRtlFree
+);
