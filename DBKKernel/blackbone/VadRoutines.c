@@ -146,7 +146,7 @@ NTSTATUS BBFindVAD(IN PEPROCESS pProcess, IN ULONG_PTR address, OUT PMMVAD_SHORT
 
 	if (dynData.VadRoot == 0)
 	{
-		DPRINT("BlackBone: %s: Invalid VadRoot offset", __FUNCTION__);
+		LogError("BlackBone: %s: Invalid VadRoot offset", __FUNCTION__);
 		status = STATUS_INVALID_ADDRESS;
 	}
 
@@ -160,7 +160,7 @@ NTSTATUS BBFindVAD(IN PEPROCESS pProcess, IN ULONG_PTR address, OUT PMMVAD_SHORT
 	}
 	else
 	{
-		DPRINT("BlackBone: %s: VAD entry for address 0x%p not found", __FUNCTION__, address);
+		LogError("BlackBone: %s: VAD entry for address 0x%p not found", __FUNCTION__, address);
 		status = STATUS_NOT_FOUND;
 	}
 

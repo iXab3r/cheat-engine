@@ -156,8 +156,6 @@ VOID monitorThreadProc(PVOID Context)
 
     for (;;)
     {
-        LogInfo("Running periodic check");
-
         NTSTATUS waitStatus = KeWaitForSingleObject(&gMonitorStopEvent, Executive, KernelMode, FALSE, &interval);
         if (waitStatus == STATUS_SUCCESS)
         {

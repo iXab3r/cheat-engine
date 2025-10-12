@@ -83,7 +83,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 	NTSTATUS threadStatus = STATUS_SUCCESS; // Initialize thread status, used when creating new threads.
 	PEPROCESS pProcess = NULL; // Pointer to the target process's EPROCESS object.
 
-	DPRINT("BlackBone: %s: Inject DLL, method: %d, PID %d", __FUNCTION__, pData->type, pData->pid);
+	LogInfo("BlackBone: %s: Inject DLL, method: %d, PID %d", __FUNCTION__, pData->type, pData->pid);
 
 	// Get the EPROCESS object for the target process based on its PID.
 	status = PsLookupProcessByProcessId((HANDLE)pData->pid, &pProcess);
@@ -100,7 +100,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 		// Process in signaled state, abort any operations
 		if (BBCheckProcessTermination(PsGetCurrentProcess()))
 		{
-			DPRINT("BlackBone: %s: Process %u is terminating. Abort", __FUNCTION__, pData->pid);
+			LogInfo("BlackBone: %s: Process %u is terminating. Abort", __FUNCTION__, pData->pid);
 			if (pProcess)
 			{
 				ObDereferenceObject(pProcess);
@@ -121,7 +121,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
-				DPRINT("BlackBone: %s: AV in user buffer: 0x%p - 0x%p", __FUNCTION__,
+				LogInfo("BlackBone: %s: AV in user buffer: 0x%p - 0x%p", __FUNCTION__,
 					pData->imageBase, pData->imageBase + pData->imageSize);
 
 				if (pProcess)
@@ -153,7 +153,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 				);
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER) {
-				DPRINT("BlackBone: %s: Fatal exception in BBMapUserImage. Exception code 0x%x", __FUNCTION__, GetExceptionCode());
+				LogInfo("BlackBone: %s: Fatal exception in BBMapUserImage. Exception code 0x%x", __FUNCTION__, GetExceptionCode());
 			}
 
 			KeUnstackDetachProcess(&apc);
@@ -170,7 +170,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 		// If failed to get ntdll base, set error
 		if (!pNtdll)
 		{
-			DPRINT("BlackBone: %s: Failed to get Ntdll base", __FUNCTION__);
+			LogInfo("BlackBone: %s: Failed to get Ntdll base", __FUNCTION__);
 			status = STATUS_NOT_FOUND;
 		}
 
@@ -180,18 +180,18 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 			LdrLoadDll = BBGetModuleExport(pNtdll, "LdrLoadDll", pProcess, NULL);
 			if (!LdrLoadDll)
 			{
-				DPRINT("BlackBone: %s: Failed to get LdrLoadDll address", __FUNCTION__);
+				LogInfo("BlackBone: %s: Failed to get LdrLoadDll address", __FUNCTION__);
 				status = STATUS_NOT_FOUND;
 			} else
 			{
-				DPRINT("BlackBone: %s: LdrLoadDll found, address: %p, ntDll is at %p", __FUNCTION__, LdrLoadDll, pNtdll);
+				LogInfo("BlackBone: %s: LdrLoadDll found, address: %p, ntDll is at %p", __FUNCTION__, LdrLoadDll, pNtdll);
 			}
 		}
 
 		// If process is protected - temporarily disable protection
 		if (PsIsProtectedProcess(pProcess))
 		{
-			DPRINT("BlackBone: %s: Process is protected, disabling protection", __FUNCTION__);
+			LogInfo("BlackBone: %s: Process is protected, disabling protection", __FUNCTION__);
 			prot.pid = pData->pid;
 			prot.protection = Policy_Disable;
 			prot.dynamicCode = Policy_Disable;
@@ -204,7 +204,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 		{
 			SIZE_T size = 0;
 			PINJECT_BUFFER pUserBuf = isWow64 ? BBGetWow64Code(LdrLoadDll, &ustrPath) : BBGetNativeCode(LdrLoadDll, &ustrPath);
-			DPRINT("BlackBone: %s: Prepared buffer, isWow64: %d, buffer ptr: %p", __FUNCTION__, isWow64, pUserBuf);
+			LogInfo("BlackBone: %s: Prepared buffer, isWow64: %d, buffer ptr: %p", __FUNCTION__, isWow64, pUserBuf);
 
 			if (pData->type == IT_Thread)
 			{
@@ -214,7 +214,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 				if (!NT_SUCCESS(threadStatus))
 				{
 					status = threadStatus;
-					DPRINT("BlackBone: %s: User thread failed with status - 0x%X", __FUNCTION__, status);
+					LogInfo("BlackBone: %s: User thread failed with status - 0x%X", __FUNCTION__, status);
 				}
 				// Call Init routine
 				else
@@ -232,7 +232,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 					}
 					else if (pUserBuf->module == 0)
 					{
-						DPRINT("BlackBone: %s: Module base = 0. Aborting", __FUNCTION__);
+						LogError("BlackBone: %s: Module base = 0. Aborting", __FUNCTION__);
 					}
 				}
 			}
@@ -242,7 +242,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 			}
 			else
 			{
-				DPRINT("BlackBone: %s: Invalid injection type specified - %d", __FUNCTION__, pData->type);
+				LogError("BlackBone: %s: Invalid injection type specified - %d", __FUNCTION__, pData->type);
 				status = STATUS_INVALID_PARAMETER;
 			}
 
@@ -273,15 +273,17 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 								RtlZeroMemory(pUserBuf->module, size);
 								ZwProtectVirtualMemory(ZwCurrentProcess(), &pUserBuf->module, &size, oldProt, &oldProt);
 
-								DPRINT("BlackBone: %s: PE headers erased. ", __FUNCTION__);
+								LogInfo("BlackBone: %s: PE headers erased. ", __FUNCTION__);
 							}
 						}
 						else
-							DPRINT("BlackBone: %s: Failed to retrieve PE headers for image", __FUNCTION__);
+						{
+							LogError("BlackBone: %s: Failed to retrieve PE headers for image", __FUNCTION__);
+						}
 					}
 					__except (EXCEPTION_EXECUTE_HANDLER)
 					{
-						DPRINT("BlackBone: %s: Exception during PE header erease: 0x%X", __FUNCTION__, GetExceptionCode());
+						LogError("BlackBone: %s: Exception during PE header erease: 0x%X", __FUNCTION__, GetExceptionCode());
 					}
 				}
 			}
@@ -292,7 +294,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 		// Restore protection
 		if (prot.pid != 0)
 		{
-			DPRINT("BlackBone: %s: Process was protected, restoring protection", __FUNCTION__);
+			LogInfo("BlackBone: %s: Process was protected, restoring protection", __FUNCTION__);
 			prot.protection = Policy_Enable;
 			prot.dynamicCode = Policy_Enable;
 			prot.signature = Policy_Enable;
@@ -304,7 +306,7 @@ NTSTATUS BBInjectDll(IN PINJECT_DLL pData)
 	}
 	else
 	{
-		DPRINT("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+		LogError("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
 	}
 
 	// Dereference the EPROCESS object to release the reference.
@@ -382,14 +384,14 @@ PINJECT_BUFFER BBGetWow64Code(IN PVOID LdrLoadDll, IN PUNICODE_STRING pPath)
 		*(ULONG*)((PUCHAR)pBuffer + 20) = (ULONG)(ULONG_PTR)&pBuffer->complete;                                // Address of the completion flag
 		*(ULONG*)((PUCHAR)pBuffer + 31) = (ULONG)(ULONG_PTR)&pBuffer->status;                                  // Address of the status variable
 
-		DPRINT("BlackBone: %s: Prepared shellcode, ptr %p, LoadLibrary ptr %p, relative %p", __FUNCTION__, pBuffer, LdrLoadDll, relCallPtr);
+		LogInfo("BlackBone: %s: Prepared shellcode, ptr %p, LoadLibrary ptr %p, relative %p", __FUNCTION__, pBuffer, LdrLoadDll, relCallPtr);
 
 		/*
 		// Add a 10 second sleep
 		LARGE_INTEGER interval = { 0 };
 		interval.QuadPart = -(20LL * 10 * 1000 * 1000); // negative value for relative time
 		KeDelayExecutionThread(KernelMode, FALSE, &interval);
-		DPRINT("BlackBone: %s: Prepared shellcode, ptr %p, LoadLibrary ptr %p, relative %p", __FUNCTION__, pBuffer, LdrLoadDll, relCallPtr);*/
+		LogInfo("BlackBone: %s: Prepared shellcode, ptr %p, LoadLibrary ptr %p, relative %p", __FUNCTION__, pBuffer, LdrLoadDll, relCallPtr);*/
 
 		return pBuffer; // Return the pointer to the allocated buffer containing the shellcode
 	}
@@ -510,7 +512,9 @@ NTSTATUS BBApcInject(IN PINJECT_BUFFER pUserBuf, IN PEPROCESS pProcess, IN ULONG
 				status = pUserBuf->status;
 			}
 			else
-				DPRINT("BlackBone: %s: APC injection abnormal termination, status 0x%X", __FUNCTION__, status);
+			{
+				LogError("BlackBone: %s: APC injection abnormal termination, status 0x%X", __FUNCTION__, status);
+			}
 
 			// Call init routine
 			if (NT_SUCCESS(status))
@@ -528,14 +532,20 @@ NTSTATUS BBApcInject(IN PINJECT_BUFFER pUserBuf, IN PEPROCESS pProcess, IN ULONG
 					}
 				}
 				else
-					DPRINT("BlackBone: %s: APC injection failed with unknown status", __FUNCTION__);
+				{
+					LogError("BlackBone: %s: APC injection failed with unknown status", __FUNCTION__);
+				}
 			}
 			else
-				DPRINT("BlackBone: %s: APC injection failed with status 0x%X", __FUNCTION__, status);
+			{
+				LogError("BlackBone: %s: APC injection failed with status 0x%X", __FUNCTION__, status);
+			}
 		}
 	}
 	else
-		DPRINT("BlackBone: %s: Failed to locate thread", __FUNCTION__);
+	{
+		LogError("BlackBone: %s: Failed to locate thread", __FUNCTION__);
+	}
 
 	if (pThread)
 		ObDereferenceObject(pThread);

@@ -63,14 +63,14 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
         TraceLoggingWrite(g_DBKProvider, "ProviderRegistered", TraceLoggingLevel(TRACE_LEVEL_INFORMATION));
     }
 
-    LogInfo("Loading BB");
+    LogInfo("DBK: %s: Loading BB", __FUNCTION__);
     NTSTATUS bbStatus = BBInitDriver(DriverObject);
     if (!NT_SUCCESS(bbStatus))
     {
-        LogError("Failed to load BB: 0x%08X", bbStatus);
+        LogError("DBK: %s: Failed to load BB: 0x%08X", __FUNCTION__, bbStatus);
         return bbStatus;
     }
-    LogInfo("BB loaded successfully");
+    LogInfo("DBK: %s: BB loaded successfully", __FUNCTION__);
 
     NTSTATUS ntStatus;
     PVOID BufDriverString = NULL, BufDriverStringFormat = NULL, BufProcessEventString = NULL, BufThreadEventString =
@@ -106,21 +106,22 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
     temp.Length = 0;
     temp.MaximumLength = DEFAULT_BUFFER_SIZE;
 
-    LogInfo("Loading driver");
+    LogInfo("DBK: %s: Loading driver", __FUNCTION__);
     if (RegistryPath)
     {
-        LogInfo("Registry path = %S", RegistryPath->Buffer);
+        LogInfo("DBK: %s: Registry path = %S", __FUNCTION__, RegistryPath->Buffer);
 
         UNICODE_STRING serviceName;
         if (ExtractServiceNameFromRegistryPath(RegistryPath, &serviceName))
         {
-            LogInfo("Driver loaded for service @ %wZ, service name: %wZ", RegistryPath, &serviceName);
+            LogInfo("DBK: %s: Driver loaded for service @ %wZ, service name: %wZ", __FUNCTION__, RegistryPath,
+                    &serviceName);
             UNICODE_STRING easvc;
             RtlInitUnicodeString(&easvc, L"EASVC73");
             BOOLEAN isCheatEngineService = RtlEqualUnicodeString(&serviceName, &easvc, TRUE);
             setIsEyeAurasService(!isCheatEngineService);
 
-            LogInfo("Service mode: %s",
+            LogInfo("DBK: %s: Service mode: %s", __FUNCTION__,
                     isEyeAurasService() ? "Generic (with PID monitoring)" : "Persistent (No PID monitoring)");
 
             if (isEyeAurasService())
@@ -130,7 +131,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
         }
         else
         {
-            LogInfo("Failed to extract service name from RegistryPath: %wZ", RegistryPath);
+            LogInfo("DBK: %s: Failed to extract service name from RegistryPath: %wZ", __FUNCTION__, RegistryPath);
             return STATUS_UNSUCCESSFUL;
         }
 
@@ -143,7 +144,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
                                            , bufPid;
             ULONG ActualSize;
 
-            LogInfo("Opened the key");
+            LogInfo("DBK: %s: Opened the key", __FUNCTION__);
 
             BufDriverString = ExAllocatePool(PagedPool, sizeof(KEY_VALUE_PARTIAL_INFORMATION) + DEFAULT_BUFFER_SIZE);
             BufDriverStringFormat = ExAllocatePool(PagedPool, DEFAULT_BUFFER_SIZE);
@@ -275,11 +276,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
                 }
             }
 
-            LogInfo("DriverString=%S", uszDriverString.Buffer);
-            LogInfo("DeviceString=%S", uszDeviceString.Buffer);
-            LogInfo("ProcessEventString=%S", uszProcessEventString.Buffer);
-            LogInfo("ThreadEventString=%S", uszThreadEventString.Buffer);
-            LogInfo("PID=%p", (HANDLE)pid64);
+            LogInfo("DBK: %s: DriverString=%S", __FUNCTION__, uszDriverString.Buffer);
+            LogInfo("DBK: %s: DeviceString=%S", __FUNCTION__, uszDeviceString.Buffer);
+            LogInfo("DBK: %s: ProcessEventString=%S", __FUNCTION__, uszProcessEventString.Buffer);
+            LogInfo("DBK: %s: ThreadEventString=%S", __FUNCTION__, uszThreadEventString.Buffer);
+            LogInfo("DBK: %s: PID=%p", __FUNCTION__, (HANDLE)pid64);
 
             if (pid64)
             {
@@ -288,7 +289,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 
             if (ntStatus == STATUS_SUCCESS)
             {
-                LogInfo("Read settings successfully");
+                LogInfo("DBK: %s: Read settings successfully", __FUNCTION__);
             }
             else
             {
@@ -297,23 +298,23 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
                 ExFreePool(bufProcessEventString);
                 ExFreePool(bugThreadEventString);
 
-                LogInfo("Failed reading the value");
+                LogInfo("DBK: %s: Failed reading the value", __FUNCTION__);
                 if (!NT_SUCCESS(ZwClose(reg)))
                 {
-                    LogInfo("Failed close registry");
+                    LogInfo("DBK: %s: Failed close registry", __FUNCTION__);
                 }
                 return STATUS_UNSUCCESSFUL;
             }
         }
         else
         {
-            LogInfo("Failed opening the key");
+            LogInfo("DBK: %s: Failed opening the key", __FUNCTION__);
             return STATUS_UNSUCCESSFUL;
         }
     }
     else
     {
-        LogInfo("Registry path is not set - loaded by DBVM");
+        LogInfo("DBK: %s: Registry path is not set - loaded by DBVM", __FUNCTION__);
         loadedbydbvm = TRUE;
     }
 
@@ -321,7 +322,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 
     if (!loadedbydbvm)
     {
-        LogInfo("Creating the device %S", uszDriverString.Buffer);
+        LogInfo("DBK: %s: Creating the device %S", __FUNCTION__, uszDriverString.Buffer);
         ntStatus = IoCreateDevice(DriverObject,
                                   0,
                                   &uszDriverString,
@@ -332,11 +333,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 
         if (ntStatus == STATUS_SUCCESS)
         {
-            LogInfo("IoCreateDevice succeeded");
+            LogInfo("DBK: %s: IoCreateDevice succeeded", __FUNCTION__);
         }
         else
         {
-            LogInfo("IoCreateDevice failed");
+            LogError("DBK: %s: IoCreateDevice failed", __FUNCTION__);
             ExFreePool(BufDriverString);
             ExFreePool(BufDriverStringFormat);
             ExFreePool(BufDeviceString);
@@ -354,13 +355,14 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 
         // Point uszDeviceString at the device name
         // Create symbolic link to the user-visible name
-        LogInfo("Creating symbolic link, deviceString: %S, driverString: %S", uszDeviceString.Buffer,
+        LogInfo("DBK: %s: Creating symbolic link, deviceString: %S, driverString: %S", __FUNCTION__,
+                uszDeviceString.Buffer,
                 uszDriverString.Buffer);
         ntStatus = IoCreateSymbolicLink(&uszDeviceString, &uszDriverString);
 
         if (ntStatus != STATUS_SUCCESS)
         {
-            LogInfo("IoCreateSymbolicLink failed: %x", ntStatus);
+            LogError("DBK: %s: IoCreateSymbolicLink failed: %x", __FUNCTION__, ntStatus);
             // Delete device object if not successful
             IoDeleteDevice(pDeviceObject);
 
@@ -381,7 +383,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
     }
 
     //when loaded by dbvm driver object is 'valid' so store the function addresses
-    LogInfo("DriverObject=%p", DriverObject);
+    LogInfo("DBK: %s: DriverObject=%p", __FUNCTION__, DriverObject);
 
     // Load structure to point to IRP handlers...
     DriverObject->DriverUnload = UnloadDriver;
@@ -399,16 +401,10 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 
     startProcessMonitoring();
 
-#ifndef CETC
     ProcessEventCount = 0;
     ExInitializeResourceLite(&ProcesslistR);
-#endif
-
     CreateProcessNotifyRoutineEnabled = FALSE;
-
-    //threadlist init
     ThreadEventCount = 0;
-
     processlist = NULL;
 
 #ifndef AMD64
@@ -439,21 +435,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
     MAX_PDE_POS = 0xFFFFF6FB7FFFFFF8ULL; // base + 0x7B7FFFFFF8
 #endif
 
-
-#ifdef CETC
-    LogInfo("Going to initialice CETC");
-    InitializeCETC();
-#endif
-
-
-    //hideme(DriverObject); //ok, for those that see this, enabling this WILL fuck up try except routines, even in usermode you'll get a blue sreen
-
-    LogInfo("Initializing debugger");
+    LogInfo("DBK: %s: Initializing debugger", __FUNCTION__);
     debugger_initialize();
 
-
     // Return success (don't do the devicestring, I need it for unload)
-    LogInfo("Cleaning up initialization buffers");
+    LogInfo("DBK: %s: Cleaning up initialization buffers", __FUNCTION__);
     if (BufDriverString)
     {
         ExFreePool(BufDriverString);
@@ -491,7 +477,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
         DWORD a;
 
         __cpuid(r, 0);
-        LogInfo("cpuid.0: r[1]=%x", r[1]);
+        LogInfo("DBK: %s: cpuid.0: r[1]=%x", __FUNCTION__, r[1]);
         if (r[1] == 0x756e6547) //GenuineIntel
         {
             __cpuid(r, 1);
@@ -513,10 +499,10 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
         }
         else
         {
-            LogInfo("Not an intel cpu");
+            LogInfo("DBK: %s: Not an intel cpu", __FUNCTION__);
             if (r[1] == 0x68747541)
             {
-                LogInfo("This is an AMD");
+                LogInfo("DBK: %s: This is an AMD", __FUNCTION__);
                 vmx_init_dovmcall(0);
             }
         }
@@ -566,7 +552,7 @@ NTSTATUS DispatchCreate(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
     }
     else
     {
-        LogInfo("A process without SeDebugPrivilege tried to open the dbk driver");
+        LogInfo("DBK: %s: A process without SeDebugPrivilege tried to open the dbk driver", __FUNCTION__);
         Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
     }
 
@@ -606,7 +592,7 @@ void UnloadDriver(PDRIVER_OBJECT DriverObject)
     if (!debugger_stopDebugging())
     {
         LogInfo("DBK: %s: Can not unload the driver because of debugger", __FUNCTION__);
-        return; //
+        return;
     }
 
     debugger_shutdown();
@@ -619,7 +605,7 @@ void UnloadDriver(PDRIVER_OBJECT DriverObject)
 
     NoExceptions_Cleanup();
 
-    if ((CreateProcessNotifyRoutineEnabled) || (ImageNotifyRoutineLoaded))
+    if (CreateProcessNotifyRoutineEnabled || ImageNotifyRoutineLoaded)
     {
         PVOID x;
         UNICODE_STRING temp;
@@ -638,11 +624,11 @@ void UnloadDriver(PDRIVER_OBJECT DriverObject)
 
         if ((PsRemoveCreateThreadNotifyRoutine2) && (PsRemoveLoadImageNotifyRoutine2))
         {
-            LogInfo("Stopping processwatch");
+            LogInfo("DBK: %s: Stopping processwatch", __FUNCTION__);
 
             if (CreateProcessNotifyRoutineEnabled)
             {
-                LogInfo("Removing process watch");
+                LogInfo("DBK: %s: Removing process watch", __FUNCTION__);
 #if (NTDDI_VERSION >= NTDDI_VISTASP1)
                 PsSetCreateProcessNotifyRoutineEx(CreateProcessNotifyRoutineEx,TRUE);
 #else
@@ -650,7 +636,7 @@ void UnloadDriver(PDRIVER_OBJECT DriverObject)
 #endif
 
 
-                LogInfo("Removing thread watch");
+                LogInfo("DBK: %s: Removing thread watch", __FUNCTION__);
                 PsRemoveCreateThreadNotifyRoutine2(CreateThreadNotifyRoutine);
             }
 
@@ -660,29 +646,34 @@ void UnloadDriver(PDRIVER_OBJECT DriverObject)
         else return; //leave now!!!!!		
     }
 
-
-    LogInfo("Driver unloading");
-
+    LogInfo("DBK: %s: Driver unloading", __FUNCTION__);
     IoDeleteDevice(DriverObject->DeviceObject);
 
-    DBKTraceLoggingUnregister();
-
-    LogInfo("DeviceString=%S", uszDeviceString.Buffer);
-    NTSTATUS r = IoDeleteSymbolicLink(&uszDeviceString);
-    LogInfo("IoDeleteSymbolicLink: %x", r);
+    LogInfo("DBK: %s: Deleting symbolic link DeviceString=%S", __FUNCTION__, uszDeviceString.Buffer);
+    NTSTATUS status = IoDeleteSymbolicLink(&uszDeviceString);
+    if (!NT_SUCCESS(status))
+    {
+        LogWarn("DBK: %s: Failed to delete symbolic link: %x", __FUNCTION__, status);
+    }
     ExFreePool(BufDeviceString);
 
     CleanProcessList();
 
-    ExDeleteResourceLite(&ProcesslistR);
+    LogInfo("DBK: %s: Releasing resource list", __FUNCTION__);
+    status = ExDeleteResourceLite(&ProcesslistR);
+    if (!NT_SUCCESS(status))
+    {
+        LogWarn("DBK: %s: Failed delete process resource list: %x", __FUNCTION__, status);
+    }
     RtlZeroMemory(&ProcesslistR, sizeof(ProcesslistR));
 
-#if (NTDDI_VERSION >= NTDDI_VISTA)
     if (DRMHandle)
     {
-        LogInfo("Unregistering DRM handle");
+        LogInfo("DBK: %s: Unregistering DRM handle", __FUNCTION__);
         ObUnRegisterCallbacks(DRMHandle);
         DRMHandle = NULL;
     }
-#endif
+
+    LogInfo("DBK: %s: Driver unloaded, unregistering TraceProvider", __FUNCTION__);
+    DBKTraceLoggingUnregister();
 }

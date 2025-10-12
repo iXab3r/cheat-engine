@@ -3,12 +3,6 @@
 #include "Imports.h"
 #include "../logging.h"
 
-//#ifdef DBG
-#define DPRINT(...) LogInfo(__VA_ARGS__)
-//#else
-//#define DPRINT(...)
-//#endif
-
 #define BB_POOL_TAG 'EABB'
 
 #define ObpAccessProtectCloseBit 0x2000000
@@ -241,32 +235,32 @@ static VOID BBPrintDynamicData(_In_ const DYNAMIC_DATA* dd)
 {
 	if (!dd)
 	{
-		DPRINT("BlackBone: %s: dd == NULL", __FUNCTION__);
+		LogInfo("BlackBone: %s: dd == NULL", __FUNCTION__);
 		return;
 	}
 
 	// Top-level summary
-	DPRINT("BlackBone: %s: _DYNAMIC_DATA @ %p", __FUNCTION__, dd);
-	DPRINT("  ver=%s (0x%04X), buildNo=%lu, correctBuild=%d",
+	LogInfo("BlackBone: %s: _DYNAMIC_DATA @ %p", __FUNCTION__, dd);
+	LogInfo("  ver=%s (0x%04X), buildNo=%lu, correctBuild=%d",
 		BBWinVerToString(dd->ver), (ULONG)dd->ver, dd->buildNo, dd->correctBuild ? 1 : 0);
 
 	// EPROCESS/KPROCESS related offsets and indices
-	DPRINT("  KExecOpt=0x%lX, Protection=0x%lX, EProcessFlags2=0x%lX",
+	LogInfo("  KExecOpt=0x%lX, Protection=0x%lX, EProcessFlags2=0x%lX",
 		dd->KExecOpt, dd->Protection, dd->EProcessFlags2);
-	DPRINT("  ObjTable=0x%lX, VadRoot=0x%lX", dd->ObjectTable, dd->VadRoot);
+	LogInfo("  ObjTable=0x%lX, VadRoot=0x%lX", dd->ObjectTable, dd->VadRoot);
 
 	// SSDT indices
-	DPRINT("  NtProtectIndex=%luX, NtCreateThdExIndex=%luX, NtTermThdIndex=%luX",
+	LogInfo("  NtProtectIndex=%luX, NtCreateThdExIndex=%luX, NtTermThdIndex=%luX",
 		dd->NtProtectIndex, dd->NtCreateThdExIndex, dd->NtTermThdIndex);
 
 	// KTHREAD/ETHREAD
-	DPRINT("  PrevMode=0x%lX, ExitStatus=0x%lX", dd->PrevMode, dd->ExitStatus);
+	LogInfo("  PrevMode=0x%lX, ExitStatus=0x%lX", dd->PrevMode, dd->ExitStatus);
 
 	// Internal offsets/hooks
-	DPRINT("  MiAllocPage=0x%lX, ExRemoveTable=0x%lX", dd->MiAllocPage, dd->ExRemoveTable);
+	LogInfo("  MiAllocPage=0x%lX, ExRemoveTable=0x%lX", dd->MiAllocPage, dd->ExRemoveTable);
 
 	// Dynamic paging base addresses (VA)
-	DPRINT("  DYN_PDE_BASE=%p, DYN_PTE_BASE=%p", (PVOID)dd->DYN_PDE_BASE, (PVOID)dd->DYN_PTE_BASE);
+	LogInfo("  DYN_PDE_BASE=%p, DYN_PTE_BASE=%p", (PVOID)dd->DYN_PDE_BASE, (PVOID)dd->DYN_PTE_BASE);
 }
 
 typedef NTSTATUS(NTAPI* fnNtCreateThreadEx)

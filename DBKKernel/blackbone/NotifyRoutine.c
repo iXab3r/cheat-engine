@@ -21,7 +21,7 @@ VOID BBProcessNotify(IN HANDLE ParentId, IN HANDLE ProcessId, IN BOOLEAN Create)
 		pPhysProcessEntry = BBLookupPhysProcessEntry(ProcessId);
 		if (pPhysProcessEntry != NULL)
 		{
-			DPRINT("BlackBone: %s: Target process %u shutdown. Physical memory Cleanup", __FUNCTION__, ProcessId);
+			LogInfo("BlackBone: %s: Target process %u shutdown. Physical memory Cleanup", __FUNCTION__, ProcessId);
 			BBCleanupProcessPhysEntry(pPhysProcessEntry, TRUE);
 		}
 
@@ -32,7 +32,7 @@ VOID BBProcessNotify(IN HANDLE ParentId, IN HANDLE ProcessId, IN BOOLEAN Create)
 		// Target process shutdown
 		if (pProcessEntry != NULL)
 		{
-			DPRINT("BlackBone: %s: Target process %u shutdown. Cleanup", __FUNCTION__, pProcessEntry->target.pid);
+			LogInfo("BlackBone: %s: Target process %u shutdown. Cleanup", __FUNCTION__, pProcessEntry->target.pid);
 			BBCleanupProcessEntry(pProcessEntry);
 		}
 		else

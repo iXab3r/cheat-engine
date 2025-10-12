@@ -214,7 +214,7 @@ NTSTATUS BBBuildProcessRegionListForRange(IN PLIST_ENTRY pList, IN ULONG_PTR sta
 
 		if (!NT_SUCCESS(status))
 		{
-			DPRINT("BlackBone: %s: ZwQueryVirtualMemory for address 0x%p returned status 0x%X", __FUNCTION__, memptr, status);
+			LogInfo("BlackBone: %s: ZwQueryVirtualMemory for address 0x%p returned status 0x%X", __FUNCTION__, memptr, status);
 
 			// STATUS_INVALID_PARAMETER is a normal status for last secured VAD under Win7
 			return status == STATUS_INVALID_PARAMETER ? STATUS_SUCCESS : status;
@@ -229,7 +229,7 @@ NTSTATUS BBBuildProcessRegionListForRange(IN PLIST_ENTRY pList, IN ULONG_PTR sta
 			pEntry = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(MAP_ENTRY), BB_POOL_TAG);
 			if (pEntry == NULL)
 			{
-				DPRINT("BlackBone: %s: Failed to allocate memory for Remap descriptor", __FUNCTION__);
+				LogInfo("BlackBone: %s: Failed to allocate memory for Remap descriptor", __FUNCTION__);
 				BBCleanupPageList(FALSE, pList);
 				return STATUS_NO_MEMORY;
 			}
@@ -307,7 +307,7 @@ NTSTATUS BBUnmapRegionEntry(IN PMAP_ENTRY pPageEntry, IN PPROCESS_MAP_ENTRY pFou
 		// If MDL is mapped
 		if (pPageEntry->newPtr)
 		{
-			DPRINT("BlackBone: %s: Unmapping region at 0x%p from process %u", __FUNCTION__, pPageEntry->newPtr, pFoundEntry->target.pid);
+			LogInfo("BlackBone: %s: Unmapping region at 0x%p from process %u", __FUNCTION__, pPageEntry->newPtr, pFoundEntry->target.pid);
 			MmUnmapLockedPages((PVOID)pPageEntry->newPtr, pPageEntry->pMdl);
 			pPageEntry->newPtr = 0;
 		}
@@ -354,7 +354,7 @@ NTSTATUS BBHandleSharedRegion(IN PEPROCESS pProcess, IN PMAP_ENTRY pEntry)
 		status = ZwQueryVirtualMemory(ZwCurrentProcess(), (PVOID)memptr, MemoryBasicInformation, &mbi, sizeof(mbi), &length);
 		if (!NT_SUCCESS(status))
 		{
-			DPRINT("BlackBone: %s: ZwQueryVirtualMemory for address 0x%p failed, status 0x%X", __FUNCTION__, memptr, status);
+			LogInfo("BlackBone: %s: ZwQueryVirtualMemory for address 0x%p failed, status 0x%X", __FUNCTION__, memptr, status);
 			return status;
 		}
 
@@ -386,7 +386,7 @@ NTSTATUS BBHandleSharedRegion(IN PEPROCESS pProcess, IN PMAP_ENTRY pEntry)
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
-				DPRINT("BlackBone: %s: Exception while touching address 0x%p", __FUNCTION__, mbi.BaseAddress);
+				LogInfo("BlackBone: %s: Exception while touching address 0x%p", __FUNCTION__, mbi.BaseAddress);
 				failed = TRUE;
 			}
 
@@ -414,7 +414,7 @@ NTSTATUS BBHandleSharedRegion(IN PEPROCESS pProcess, IN PMAP_ENTRY pEntry)
 				if (NT_SUCCESS(ZwQueryVirtualMemory(ZwCurrentProcess(), NULL, MemoryWorkingSetExInformation, &wsInfo, sizeof(wsInfo), &length)) &&
 					wsInfo.VirtualAttributes.Shared)
 				{
-					DPRINT("BlackBone: %s: Page at address 0x%p is still shared!", __FUNCTION__, pPage);
+					LogInfo("BlackBone: %s: Page at address 0x%p is still shared!", __FUNCTION__, pPage);
 					return STATUS_SHARING_VIOLATION;
 				}
 			}
@@ -422,7 +422,7 @@ NTSTATUS BBHandleSharedRegion(IN PEPROCESS pProcess, IN PMAP_ENTRY pEntry)
 		else
 		{
 			if (status != STATUS_SECTION_PROTECTION)
-				DPRINT("BlackBone: %s: Failed to alter protection of region at 0x%p, status 0x%X", __FUNCTION__, mbi.BaseAddress, status);
+				LogInfo("BlackBone: %s: Failed to alter protection of region at 0x%p, status 0x%X", __FUNCTION__, mbi.BaseAddress, status);
 
 			return status;
 		}
@@ -454,7 +454,7 @@ NTSTATUS BBPrepareMDLListEntry(IN PEPROCESS pProcess, IN OUT PMAP_ENTRY pEntry)
 
 	if (pEntry->pMdl == NULL)
 	{
-		DPRINT("BlackBone: %s: Failed to allocate MDL for address 0x%p", __FUNCTION__, pEntry->mem.BaseAddress);
+		LogInfo("BlackBone: %s: Failed to allocate MDL for address 0x%p", __FUNCTION__, pEntry->mem.BaseAddress);
 		return STATUS_NO_MEMORY;
 	}
 
@@ -465,7 +465,7 @@ NTSTATUS BBPrepareMDLListEntry(IN PEPROCESS pProcess, IN OUT PMAP_ENTRY pEntry)
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
-		DPRINT("BlackBone: %s: Exception in MmProbeAndLockPages. Base = 0x%p", __FUNCTION__, pEntry->mem.BaseAddress);
+		LogInfo("BlackBone: %s: Exception in MmProbeAndLockPages. Base = 0x%p", __FUNCTION__, pEntry->mem.BaseAddress);
 		IoFreeMdl(pEntry->pMdl);
 		pEntry->pMdl = NULL;
 	}
@@ -540,7 +540,7 @@ NTSTATUS BBMapRegionIntoCurrentProcess(IN PMAP_ENTRY pEntry, IN PMAP_ENTRY pPrev
 	if (pEntry->newPtr != 0)
 	{
 		//if (pEntry->newPtr != pEntry->originalPtr)
-			//DPRINT( "BlackBone: %s: Remapped 0x%p --> 0x%p", __FUNCTION__, pEntry->originalPtr, pEntry->newPtr );
+			//LogInfo( "BlackBone: %s: Remapped 0x%p --> 0x%p", __FUNCTION__, pEntry->originalPtr, pEntry->newPtr );
 
 		// Update region protection only for the sake of NtQueryVirtualMemory
 		// It has no other effect because real protection is determined by underlying PTEs
@@ -560,7 +560,7 @@ NTSTATUS BBMapRegionIntoCurrentProcess(IN PMAP_ENTRY pEntry, IN PMAP_ENTRY pPrev
 	}
 	else
 	{
-		DPRINT("BlackBone: %s: Failed to map region at adress 0x%p", __FUNCTION__, pEntry->mem.BaseAddress);
+		LogInfo("BlackBone: %s: Failed to map region at adress 0x%p", __FUNCTION__, pEntry->mem.BaseAddress);
 		status = STATUS_NONE_MAPPED;
 	}
 
@@ -586,7 +586,7 @@ NTSTATUS BBMapRegionListIntoCurrentProcess(IN PLIST_ENTRY pList, IN BOOLEAN noWa
 		if (pEntry->newPtr != 0)
 		{
 			if (noWarning == FALSE)
-				DPRINT("BlackBone: %s: Warning! Region 0x%p already mapped to 0x%p", __FUNCTION__, pEntry->mem.BaseAddress, pEntry->newPtr);
+				LogInfo("BlackBone: %s: Warning! Region 0x%p already mapped to 0x%p", __FUNCTION__, pEntry->mem.BaseAddress, pEntry->newPtr);
 
 			continue;
 		}
@@ -595,7 +595,7 @@ NTSTATUS BBMapRegionListIntoCurrentProcess(IN PLIST_ENTRY pList, IN BOOLEAN noWa
 		if (pEntry->pMdl && pEntry->locked)
 			status |= BBMapRegionIntoCurrentProcess(pEntry, pPrevEntry);
 		else
-			DPRINT("BlackBone: %s: No valid MDL for address 0x%p. Either not allocated or not locked", __FUNCTION__, pEntry->mem.BaseAddress);
+			LogInfo("BlackBone: %s: No valid MDL for address 0x%p. Either not allocated or not locked", __FUNCTION__, pEntry->mem.BaseAddress);
 
 		pPrevEntry = pEntry;
 	}
@@ -629,7 +629,7 @@ NTSTATUS BBAllocateSharedPage(OUT PVOID* pPage, OUT PMDL* pResultMDL)
 	}
 	else
 	{
-		DPRINT("BlackBone: %s: Failed to allocate kernel page", __FUNCTION__);
+		LogInfo("BlackBone: %s: Failed to allocate kernel page", __FUNCTION__);
 		status = STATUS_MEMORY_NOT_ALLOCATED;
 	}
 
@@ -656,7 +656,7 @@ NTSTATUS BBMapSharedPage(IN PMDL pMDL, OUT PVOID* pResult)
 		*pResult = MmMapLockedPagesSpecifyCache(pMDL, UserMode, MmCached, NULL, FALSE, NormalPagePriority);
 		if (*pResult)
 		{
-			//DPRINT( "BlackBone: %s: Shared page at 0x%p", __FUNCTION__, *pResult );
+			//LogInfo( "BlackBone: %s: Shared page at 0x%p", __FUNCTION__, *pResult );
 
 			// Make executable
 			BBProtectVAD(PsGetCurrentProcess(), (ULONG_PTR)*pResult, MM_EXECUTE_READWRITE);
@@ -669,7 +669,7 @@ NTSTATUS BBMapSharedPage(IN PMDL pMDL, OUT PVOID* pResult)
 
 	if (*pResult == NULL)
 	{
-		DPRINT("BlackBone: %s: Failed to map kernel page", __FUNCTION__);
+		LogInfo("BlackBone: %s: Failed to map kernel page", __FUNCTION__);
 		status = STATUS_NOT_MAPPED_DATA;
 	}
 
@@ -703,7 +703,7 @@ NTSTATUS BBMapMemory(IN PMAP_MEMORY pRemap, OUT PPROCESS_MAP_ENTRY* ppEntry)
 	status = PsLookupProcessByProcessId(processEntry.target.pid, &pProcess);
 	if (!NT_SUCCESS(status))
 	{
-		DPRINT("BlackBone: %s: Failed to find process with PID %u", __FUNCTION__, processEntry.target.pid);
+		LogInfo("BlackBone: %s: Failed to find process with PID %u", __FUNCTION__, processEntry.target.pid);
 
 		KeReleaseGuardedMutex(&g_globalLock);
 		return status;
@@ -712,7 +712,7 @@ NTSTATUS BBMapMemory(IN PMAP_MEMORY pRemap, OUT PPROCESS_MAP_ENTRY* ppEntry)
 	// Process in signaled state, abort any operations
 	if (BBCheckProcessTermination(pProcess))
 	{
-		DPRINT("BlackBone: %s: Process %u is terminating. Abort", __FUNCTION__, processEntry.target.pid);
+		LogInfo("BlackBone: %s: Process %u is terminating. Abort", __FUNCTION__, processEntry.target.pid);
 
 		ObDereferenceObject(pProcess);
 		KeReleaseGuardedMutex(&g_globalLock);
@@ -762,7 +762,7 @@ NTSTATUS BBMapMemory(IN PMAP_MEMORY pRemap, OUT PPROCESS_MAP_ENTRY* ppEntry)
 				}
 
 				if (!NT_SUCCESS(pipeStatus))
-					DPRINT("BlackBone: %s: Remap pipe failed with status 0x%X", __FUNCTION__, pipeStatus);
+					LogInfo("BlackBone: %s: Remap pipe failed with status 0x%X", __FUNCTION__, pipeStatus);
 			}
 
 			KeUnstackDetachProcess(&apc);
@@ -770,13 +770,13 @@ NTSTATUS BBMapMemory(IN PMAP_MEMORY pRemap, OUT PPROCESS_MAP_ENTRY* ppEntry)
 	}
 	else
 	{
-		DPRINT("BlackBone: %s: Found mapping entry for process %u", __FUNCTION__, pFoundEntry->target.pid);
+		LogInfo("BlackBone: %s: Found mapping entry for process %u", __FUNCTION__, pFoundEntry->target.pid);
 
 		// Caller is not Host and Host still exists
 		// Do not allow remapping into new process
 		if (pFoundEntry->host.pid != PsGetCurrentProcessId() && pFoundEntry->host.pid != NULL)
 		{
-			DPRINT("BlackBone: %s: Host process %u still exists. Cannot map into new process", __FUNCTION__, pFoundEntry->host.pid);
+			LogInfo("BlackBone: %s: Host process %u still exists. Cannot map into new process", __FUNCTION__, pFoundEntry->host.pid);
 			status = STATUS_ADDRESS_ALREADY_EXISTS;
 		}
 	}
@@ -829,7 +829,7 @@ NTSTATUS BBMapMemoryRegion(IN PMAP_MEMORY_REGION pRegion, OUT PMAP_MEMORY_REGION
 	// Don't allow remapping of kernel addresses
 	if (pRegion->base >= (ULONGLONG)MM_HIGHEST_USER_ADDRESS || pRegion->base + pRegion->size > (ULONGLONG)MM_HIGHEST_USER_ADDRESS)
 	{
-		DPRINT("BlackBone: %s: Invalid address range: 0x%p - 0x%p", __FUNCTION__, pRegion->base, pRegion->base + pRegion->size);
+		LogInfo("BlackBone: %s: Invalid address range: 0x%p - 0x%p", __FUNCTION__, pRegion->base, pRegion->base + pRegion->size);
 		return STATUS_INVALID_ADDRESS;
 	}
 
@@ -845,7 +845,7 @@ NTSTATUS BBMapMemoryRegion(IN PMAP_MEMORY_REGION pRegion, OUT PMAP_MEMORY_REGION
 	status = PsLookupProcessByProcessId(processEntry.target.pid, &pProcess);
 	if (!NT_SUCCESS(status))
 	{
-		DPRINT("BlackBone: %s: Failed to find process 0x%u", __FUNCTION__, processEntry.target.pid);
+		LogInfo("BlackBone: %s: Failed to find process 0x%u", __FUNCTION__, processEntry.target.pid);
 		KeReleaseGuardedMutex(&g_globalLock);
 		return status;
 	}
@@ -853,7 +853,7 @@ NTSTATUS BBMapMemoryRegion(IN PMAP_MEMORY_REGION pRegion, OUT PMAP_MEMORY_REGION
 	// Process in signaled state, abort any operations
 	if (BBCheckProcessTermination(pProcess))
 	{
-		DPRINT("BlackBone: %s: Process %u is terminating. Abort", __FUNCTION__, processEntry.target.pid);
+		LogInfo("BlackBone: %s: Process %u is terminating. Abort", __FUNCTION__, processEntry.target.pid);
 
 		ObDereferenceObject(pProcess);
 		KeReleaseGuardedMutex(&g_globalLock);
@@ -864,7 +864,7 @@ NTSTATUS BBMapMemoryRegion(IN PMAP_MEMORY_REGION pRegion, OUT PMAP_MEMORY_REGION
 	pFoundEntry = (PPROCESS_MAP_ENTRY)RtlInsertElementGenericTableAvl(&g_ProcessPageTables, &processEntry, sizeof(processEntry), &newEntry);
 	if (newEntry != FALSE)
 	{
-		DPRINT("BlackBone: %s: Process entry 0x%u was not found, creating new", __FUNCTION__, processEntry.target.pid);
+		LogInfo("BlackBone: %s: Process entry 0x%u was not found, creating new", __FUNCTION__, processEntry.target.pid);
 		InitializeListHead(&pFoundEntry->pageList);
 
 		// Allocate shared Page
@@ -877,7 +877,7 @@ NTSTATUS BBMapMemoryRegion(IN PMAP_MEMORY_REGION pRegion, OUT PMAP_MEMORY_REGION
 		// Does not allow call from non-original process
 		if (pFoundEntry->host.pid != PsGetCurrentProcessId() && pFoundEntry->host.pid != NULL)
 		{
-			DPRINT("BlackBone: %s: Call from non-original process not supported", __FUNCTION__);
+			LogInfo("BlackBone: %s: Call from non-original process not supported", __FUNCTION__);
 			status = STATUS_INVALID_PARAMETER;
 		}
 
@@ -890,7 +890,7 @@ NTSTATUS BBMapMemoryRegion(IN PMAP_MEMORY_REGION pRegion, OUT PMAP_MEMORY_REGION
 			if (pRegion->base < (ULONGLONG)pPageEntry->mem.BaseAddress ||
 				pRegion->base + pRegion->size >(ULONGLONG)pPageEntry->mem.BaseAddress + pPageEntry->mem.RegionSize)
 			{
-				DPRINT(
+				LogInfo(
 					"BlackBone: %s: Target region 0%p - 0x%p conficts with existing: 0x%p - 0x%p", __FUNCTION__,
 					pRegion->base, pRegion->base + pRegion->size,
 					pPageEntry->mem.BaseAddress, (ULONGLONG)pPageEntry->mem.BaseAddress + pPageEntry->mem.RegionSize
@@ -945,7 +945,7 @@ NTSTATUS BBMapMemoryRegion(IN PMAP_MEMORY_REGION pRegion, OUT PMAP_MEMORY_REGION
 		PMAP_ENTRY pEntry = BBFindPageEntry(&pFoundEntry->pageList, pRegion->base, pRegion->size);
 		if (pEntry)
 		{
-			DPRINT("BlackBone: %s: Updated 0x%p --> 0x%p", __FUNCTION__, pEntry->mem.BaseAddress, pEntry->newPtr);
+			LogInfo("BlackBone: %s: Updated 0x%p --> 0x%p", __FUNCTION__, pEntry->mem.BaseAddress, pEntry->newPtr);
 
 			pResult->originalPtr = (ULONGLONG)pEntry->mem.BaseAddress;
 			pResult->newPtr = pEntry->newPtr;
@@ -979,12 +979,12 @@ NTSTATUS BBUnmapMemory(IN PUNMAP_MEMORY pUnmap)
 	pFoundEntry = BBLookupProcessEntry((HANDLE)pUnmap->pid, FALSE);
 	if (pFoundEntry == NULL)
 	{
-		DPRINT("BlackBone: %s: Process entry with PID %u was not found", __FUNCTION__, pUnmap->pid);
+		LogInfo("BlackBone: %s: Process entry with PID %u was not found", __FUNCTION__, pUnmap->pid);
 		status = STATUS_NOT_FOUND;
 	}
 	else
 	{
-		DPRINT("BlackBone: %s: BBUnmapMemory cleanup for PID %u", __FUNCTION__, pUnmap->pid);
+		LogInfo("BlackBone: %s: BBUnmapMemory cleanup for PID %u", __FUNCTION__, pUnmap->pid);
 		BBCleanupProcessEntry(pFoundEntry);
 	}
 
@@ -1015,7 +1015,7 @@ NTSTATUS BBUnmapMemoryRegion(IN PUNMAP_MEMORY_REGION pRegion)
 	status = PsLookupProcessByProcessId((HANDLE)pRegion->pid, &pProcess);
 	if (!NT_SUCCESS(status))
 	{
-		DPRINT("BlackBone: %s: Failed to find process 0x%u", __FUNCTION__, pRegion->pid);
+		LogInfo("BlackBone: %s: Failed to find process 0x%u", __FUNCTION__, pRegion->pid);
 		KeReleaseGuardedMutex(&g_globalLock);
 		return status;
 	}
@@ -1023,7 +1023,7 @@ NTSTATUS BBUnmapMemoryRegion(IN PUNMAP_MEMORY_REGION pRegion)
 	// Process in signaled state, abort any operations
 	if (BBCheckProcessTermination(pProcess))
 	{
-		DPRINT("BlackBone: %s: Process %u is terminating. Abort", __FUNCTION__, pRegion->pid);
+		LogInfo("BlackBone: %s: Process %u is terminating. Abort", __FUNCTION__, pRegion->pid);
 
 		ObDereferenceObject(pProcess);
 		KeReleaseGuardedMutex(&g_globalLock);
@@ -1033,7 +1033,7 @@ NTSTATUS BBUnmapMemoryRegion(IN PUNMAP_MEMORY_REGION pRegion)
 	pFoundEntry = BBLookupProcessEntry((HANDLE)pRegion->pid, FALSE);
 	if (pFoundEntry == NULL)
 	{
-		DPRINT("BlackBone: %s: Process entry for process %u was not found", __FUNCTION__, pRegion->pid);
+		LogInfo("BlackBone: %s: Process entry for process %u was not found", __FUNCTION__, pRegion->pid);
 		status = STATUS_NOT_FOUND;
 	}
 	else
@@ -1041,7 +1041,7 @@ NTSTATUS BBUnmapMemoryRegion(IN PUNMAP_MEMORY_REGION pRegion)
 		// Does not allow call from non-original process
 		if (pFoundEntry->host.pid != PsGetCurrentProcessId())
 		{
-			DPRINT("BlackBone: %s: Call from non-original process not supported", __FUNCTION__);
+			LogInfo("BlackBone: %s: Call from non-original process not supported", __FUNCTION__);
 			status = STATUS_INVALID_PARAMETER;
 		}
 		else
@@ -1057,7 +1057,7 @@ NTSTATUS BBUnmapMemoryRegion(IN PUNMAP_MEMORY_REGION pRegion)
 			}
 			else
 			{
-				DPRINT("BlackBone: %s: Map entry for address 0x%p was not found", __FUNCTION__, pRegion->base);
+				LogInfo("BlackBone: %s: Map entry for address 0x%p was not found", __FUNCTION__, pRegion->base);
 				status = STATUS_INVALID_ADDRESS;
 			}
 		}
@@ -1210,7 +1210,7 @@ VOID BBCleanupHostProcess(IN PPROCESS_MAP_ENTRY pProcessEntry)
 	if (pProcessEntry == NULL)
 		return;
 
-	DPRINT("BlackBone: %s: Host process %u shutdown. Cleanup", __FUNCTION__, pProcessEntry->host.pid);
+	LogInfo("BlackBone: %s: Host process %u shutdown. Cleanup", __FUNCTION__, pProcessEntry->host.pid);
 
 	for (PLIST_ENTRY pListEntry = pProcessEntry->pageList.Flink; pListEntry != &pProcessEntry->pageList; pListEntry = pListEntry->Flink)
 	{

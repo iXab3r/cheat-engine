@@ -58,7 +58,7 @@ NTSTATUS BBInitLdrData(IN PKLDR_DATA_TABLE_ENTRY pThisModule)
 	PVOID kernelBase = GetKernelBase(NULL);
 	if (kernelBase == NULL)
 	{
-		DPRINT("BlackBone: %s: Failed to retrieve Kernel base address. Aborting", __FUNCTION__);
+		LogInfo("BlackBone: %s: Failed to retrieve Kernel base address. Aborting", __FUNCTION__);
 		return STATUS_NOT_FOUND;
 	}
 
@@ -81,7 +81,7 @@ NTSTATUS BBInitLdrData(IN PKLDR_DATA_TABLE_ENTRY pThisModule)
 
 	if (!PsLoadedModuleList)
 	{
-		DPRINT("BlackBone: %s: Failed to retrieve PsLoadedModuleList address. Aborting", __FUNCTION__);
+		LogInfo("BlackBone: %s: Failed to retrieve PsLoadedModuleList address. Aborting", __FUNCTION__);
 		return STATUS_NOT_FOUND;
 	}
 
@@ -146,21 +146,21 @@ PVOID BBGetUserModule(IN PEPROCESS pProcess, IN PUNICODE_STRING ModuleName, IN B
 			PPEB32 pPeb32 = (PPEB32)PsGetProcessWow64Process(pProcess);
 			if (pPeb32 == NULL)
 			{
-				DPRINT("BlackBone: %s: No PEB present. Aborting", __FUNCTION__);
+				LogInfo("BlackBone: %s: No PEB present. Aborting", __FUNCTION__);
 				return NULL;
 			}
 
 			// Wait for loader a bit
 			for (INT i = 0; !pPeb32->Ldr && i < 10; i++)
 			{
-				DPRINT("BlackBone: %s: Loader not intialiezd, waiting", __FUNCTION__);
+				LogInfo("BlackBone: %s: Loader not intialiezd, waiting", __FUNCTION__);
 				KeDelayExecutionThread(KernelMode, TRUE, &time);
 			}
 
 			// Still no loader
 			if (!pPeb32->Ldr)
 			{
-				DPRINT("BlackBone: %s: Loader was not intialiezd in time. Aborting", __FUNCTION__);
+				LogInfo("BlackBone: %s: Loader was not intialiezd in time. Aborting", __FUNCTION__);
 				return NULL;
 			}
 
@@ -184,21 +184,21 @@ PVOID BBGetUserModule(IN PEPROCESS pProcess, IN PUNICODE_STRING ModuleName, IN B
 			PPEB pPeb = PsGetProcessPeb(pProcess);
 			if (!pPeb)
 			{
-				DPRINT("BlackBone: %s: No PEB present. Aborting", __FUNCTION__);
+				LogInfo("BlackBone: %s: No PEB present. Aborting", __FUNCTION__);
 				return NULL;
 			}
 
 			// Wait for loader a bit
 			for (INT i = 0; !pPeb->Ldr && i < 10; i++)
 			{
-				DPRINT("BlackBone: %s: Loader not intialiezd, waiting", __FUNCTION__);
+				LogInfo("BlackBone: %s: Loader not intialiezd, waiting", __FUNCTION__);
 				KeDelayExecutionThread(KernelMode, TRUE, &time);
 			}
 
 			// Still no loader
 			if (!pPeb->Ldr)
 			{
-				DPRINT("BlackBone: %s: Loader was not intialiezd in time. Aborting", __FUNCTION__);
+				LogInfo("BlackBone: %s: Loader was not intialiezd in time. Aborting", __FUNCTION__);
 				return NULL;
 			}
 
@@ -215,7 +215,7 @@ PVOID BBGetUserModule(IN PEPROCESS pProcess, IN PUNICODE_STRING ModuleName, IN B
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
-		DPRINT("BlackBone: %s: Exception, Code: 0x%X", __FUNCTION__, GetExceptionCode());
+		LogInfo("BlackBone: %s: Exception, Code: 0x%X", __FUNCTION__, GetExceptionCode());
 	}
 
 	return NULL;
@@ -244,7 +244,7 @@ NTSTATUS BBUnlinkFromLoader(IN PEPROCESS pProcess, IN PVOID pBase, IN BOOLEAN is
 			PPEB32 pPeb32 = (PPEB32)PsGetProcessWow64Process(pProcess);
 			if (pPeb32 == NULL)
 			{
-				DPRINT("BlackBone: %s: No PEB present. Aborting", __FUNCTION__);
+				LogInfo("BlackBone: %s: No PEB present. Aborting", __FUNCTION__);
 				return STATUS_NOT_FOUND;
 			}
 
@@ -273,7 +273,7 @@ NTSTATUS BBUnlinkFromLoader(IN PEPROCESS pProcess, IN PVOID pBase, IN BOOLEAN is
 			PPEB pPeb = PsGetProcessPeb(pProcess);
 			if (!pPeb)
 			{
-				DPRINT("BlackBone: %s: No PEB present. Aborting", __FUNCTION__);
+				LogInfo("BlackBone: %s: No PEB present. Aborting", __FUNCTION__);
 				return STATUS_NOT_FOUND;
 			}
 
@@ -299,7 +299,7 @@ NTSTATUS BBUnlinkFromLoader(IN PEPROCESS pProcess, IN PVOID pBase, IN BOOLEAN is
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
-		DPRINT("BlackBone: %s: Exception, Code: 0x%X", __FUNCTION__, GetExceptionCode());
+		LogInfo("BlackBone: %s: Exception, Code: 0x%X", __FUNCTION__, GetExceptionCode());
 	}
 
 	return status;
@@ -500,7 +500,7 @@ NTSTATUS BBLookupProcessThread(IN PEPROCESS pProcess, OUT PETHREAD* ppThread)
 
 	if (!pInfo)
 	{
-		DPRINT("BlackBone: %s: Failed to allocate memory for process list", __FUNCTION__);
+		LogInfo("BlackBone: %s: Failed to allocate memory for process list", __FUNCTION__);
 		return STATUS_NO_MEMORY;
 	}
 
@@ -562,7 +562,7 @@ NTSTATUS BBLookupProcessThread(IN PEPROCESS pProcess, OUT PETHREAD* ppThread)
 		}
 	}
 	else
-		DPRINT("BlackBone: %s: Failed to locate process", __FUNCTION__);
+		LogInfo("BlackBone: %s: Failed to locate process", __FUNCTION__);
 
 	if (pBuf)
 		ExFreePoolWithTag(pBuf, BB_POOL_TAG);
@@ -594,7 +594,7 @@ NTSTATUS BBExecuteInNewThread(
 {
     if (KeGetCurrentIrql() != PASSIVE_LEVEL)
     {
-		DPRINT("BlackBone: %s: Must be at a passive level", __FUNCTION__);
+		LogInfo("BlackBone: %s: Must be at a passive level", __FUNCTION__);
         return STATUS_INVALID_DEVICE_STATE;
     }
 
@@ -603,7 +603,7 @@ NTSTATUS BBExecuteInNewThread(
     OBJECT_ATTRIBUTES oa;
     InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
 
-    DPRINT("BlackBone: %s: ZwCreateThreadEx, start=%p, param=%p, flags=0x%X", __FUNCTION__, pBaseAddress, pParam, flags);
+    LogInfo("BlackBone: %s: ZwCreateThreadEx, start=%p, param=%p, flags=0x%X", __FUNCTION__, pBaseAddress, pParam, flags);
     status = ZwCreateThreadEx(
         &hThread,
         THREAD_QUERY_LIMITED_INFORMATION,
@@ -618,13 +618,13 @@ NTSTATUS BBExecuteInNewThread(
         NULL);                  // AttributeList
 
     if (NT_SUCCESS(status)) {
-		DPRINT("BlackBone: %s: ZwCreateThreadEx succeeded, wait: %d", __FUNCTION__, wait);
+		LogInfo("BlackBone: %s: ZwCreateThreadEx succeeded, wait: %d", __FUNCTION__, wait);
     	if (wait) {
     		// Wait up to 60s
     		LARGE_INTEGER timeout; timeout.QuadPart = -(60ll * 10 * 1000 * 1000);
     		NTSTATUS ws = ZwWaitForSingleObject(hThread, FALSE, &timeout);
     		if (!NT_SUCCESS(ws)) {
-    			DPRINT("BlackBone: %s: ZwWaitForSingleObject failed: 0x%X", __FUNCTION__, ws);
+    			LogInfo("BlackBone: %s: ZwWaitForSingleObject failed: 0x%X", __FUNCTION__, ws);
     			status = ws;
     		} else if (pExitStatus) {
     			THREAD_BASIC_INFORMATION tbi = {0};
@@ -633,12 +633,12 @@ NTSTATUS BBExecuteInNewThread(
     			if (NT_SUCCESS(qs))
     				*pExitStatus = tbi.ExitStatus;
     			else
-    				DPRINT("BlackBone: %s: ZwQueryInformationThread failed: 0x%X", __FUNCTION__, qs);
+    				LogError("BlackBone: %s: ZwQueryInformationThread failed: 0x%X", __FUNCTION__, qs);
     		}
     	}
     } else
     {
-		DPRINT("BlackBone: %s: ZwCreateThreadEx failed: 0x%X", __FUNCTION__, status);
+		LogError("BlackBone: %s: ZwCreateThreadEx failed: 0x%X", __FUNCTION__, status);
     }
 	
     if (hThread)
@@ -677,7 +677,7 @@ NTSTATUS BBQueueUserApc(
 
 	if (pInjectApc == NULL)
 	{
-		DPRINT("BlackBone: %s: Failed to allocate APC", __FUNCTION__);
+		LogError("BlackBone: %s: Failed to allocate APC", __FUNCTION__);
 		return STATUS_NO_MEMORY;
 	}
 
@@ -709,7 +709,7 @@ NTSTATUS BBQueueUserApc(
 	}
 	else
 	{
-		DPRINT("BlackBone: %s: Failed to insert APC", __FUNCTION__);
+		LogError("BlackBone: %s: Failed to insert APC", __FUNCTION__);
 
 		ExFreePoolWithTag(pInjectApc, BB_POOL_TAG);
 
@@ -736,7 +736,7 @@ VOID KernelApcPrepareCallback(
 	UNREFERENCED_PARAMETER(SystemArgument1);
 	UNREFERENCED_PARAMETER(SystemArgument2);
 
-	//DPRINT( "BlackBone: %s: Called", __FUNCTION__ );
+	//LogInfo( "BlackBone: %s: Called", __FUNCTION__ );
 
 	// Alert current thread
 	KeTestAlertThread(UserMode);
@@ -754,7 +754,7 @@ VOID KernelApcInjectCallback(
 	UNREFERENCED_PARAMETER(SystemArgument1);
 	UNREFERENCED_PARAMETER(SystemArgument2);
 
-	//DPRINT( "BlackBone: %s: Called. NormalRoutine = 0x%p", __FUNCTION__, *NormalRoutine );
+	//LogInfo( "BlackBone: %s: Called. NormalRoutine = 0x%p", __FUNCTION__, *NormalRoutine );
 
 	// Skip execution
 	if (PsIsThreadTerminating(PsGetCurrentThread()))
@@ -796,7 +796,7 @@ NTSTATUS BBMapWorker(IN PVOID pArg)
 
 	if (!NT_SUCCESS(status))
 	{
-		DPRINT("BlackBone: %s: Failed to open '%wZ'. Status: 0x%X", __FUNCTION__, pPath, status);
+		LogError("BlackBone: %s: Failed to open '%wZ'. Status: 0x%X", __FUNCTION__, pPath, status);
 		PsTerminateSystemThread(status);
 		return status;
 	}
@@ -806,7 +806,7 @@ NTSTATUS BBMapWorker(IN PVOID pArg)
 	if (NT_SUCCESS(status))
 		fileData = ExAllocatePool2(POOL_FLAG_PAGED, fileInfo.EndOfFile.QuadPart, BB_POOL_TAG);
 	else
-		DPRINT("BlackBone: %s: Failed to get '%wZ' size. Status: 0x%X", __FUNCTION__, pPath, status);
+		LogError("BlackBone: %s: Failed to get '%wZ' size. Status: 0x%X", __FUNCTION__, pPath, status);
 
 	// Get file contents
 	status = ZwReadFile(hFile, NULL, NULL, NULL, &statusBlock, fileData, fileInfo.EndOfFile.LowPart, NULL, NULL);
@@ -815,12 +815,12 @@ NTSTATUS BBMapWorker(IN PVOID pArg)
 		pNTHeader = RtlImageNtHeader(fileData);
 		if (!pNTHeader)
 		{
-			DPRINT("BlackBone: %s: Failed to obtaint NT Header for '%wZ'", __FUNCTION__, pPath);
+			LogError("BlackBone: %s: Failed to obtaint NT Header for '%wZ'", __FUNCTION__, pPath);
 			status = STATUS_INVALID_IMAGE_FORMAT;
 		}
 	}
 	else
-		DPRINT("BlackBone: %s: Failed to read '%wZ'. Status: 0x%X", __FUNCTION__, pPath, status);
+		LogError("BlackBone: %s: Failed to read '%wZ'. Status: 0x%X", __FUNCTION__, pPath, status);
 
 	ZwClose(hFile);
 
@@ -855,7 +855,9 @@ NTSTATUS BBMapWorker(IN PVOID pArg)
 			// Relocate image
 			status = LdrRelocateImage(imageSection, STATUS_SUCCESS, STATUS_CONFLICTING_ADDRESSES, STATUS_INVALID_IMAGE_FORMAT);
 			if (!NT_SUCCESS(status))
-				DPRINT("BlackBone: %s: Failed to relocate image '%wZ'. Status: 0x%X", __FUNCTION__, pPath, status);
+			{
+				LogError("BlackBone: %s: Failed to relocate image '%wZ'. Status: 0x%X", __FUNCTION__, pPath, status);
+			}
 
 			// Fill IAT
 			if (NT_SUCCESS(status))
@@ -863,7 +865,7 @@ NTSTATUS BBMapWorker(IN PVOID pArg)
 		}
 		else
 		{
-			DPRINT("BlackBone: %s: Failed to allocate memory for image '%wZ'", __FUNCTION__, pPath);
+			LogError("BlackBone: %s: Failed to allocate memory for image '%wZ'", __FUNCTION__, pPath);
 			status = STATUS_MEMORY_NOT_ALLOCATED;
 		}
 	}
@@ -905,7 +907,9 @@ NTSTATUS BBMapWorker(IN PVOID pArg)
 		ExFreePoolWithTag(fileData, BB_POOL_TAG);
 
 	if (NT_SUCCESS(status))
-		DPRINT("BlackBone: %s: Successfully mapped '%wZ' at 0x%p", __FUNCTION__, pPath, imageSection);
+	{
+		LogInfo("BlackBone: %s: Successfully mapped '%wZ' at 0x%p", __FUNCTION__, pPath, imageSection);
+	}
 
 	PsTerminateSystemThread(status);
 	return status;
@@ -928,12 +932,14 @@ NTSTATUS BBMMapDriver(IN PUNICODE_STRING pPath)
 
 	ASSERT(pPath != NULL);
 	if (pPath == NULL)
+	{
 		return STATUS_INVALID_PARAMETER;
+	}
 
 	NTSTATUS status = PsCreateSystemThread(&hThread, THREAD_ALL_ACCESS, &obAttr, NULL, &clientID, &BBMapWorker, pPath);
 	if (!NT_SUCCESS(status))
 	{
-		DPRINT("BlackBone: %s: Failed to create worker thread. Status: 0x%X", __FUNCTION__, status);
+		LogError("BlackBone: %s: Failed to create worker thread. Status: 0x%X", __FUNCTION__, status);
 		return status;
 	}
 

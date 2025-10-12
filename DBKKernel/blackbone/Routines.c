@@ -66,12 +66,12 @@ NTSTATUS BBDisableDEP(IN PDISABLE_DEP pData)
 		}
 		else
 		{
-			DPRINT("BlackBone: %s: Invalid _KEXECUTE_OPTIONS offset", __FUNCTION__);
+			LogInfo("BlackBone: %s: Invalid _KEXECUTE_OPTIONS offset", __FUNCTION__);
 			status = STATUS_INVALID_ADDRESS;
 		}
 	}
 	else
-		DPRINT("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+		LogInfo("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
 
 	if (pProcess)
 		ObDereferenceObject(pProcess);
@@ -159,12 +159,14 @@ NTSTATUS BBSetProtection(IN PSET_PROC_PROTECTION pProtection)
 		}
 		else
 		{
-			DPRINT("BlackBone: %s: Invalid protection flag offset", __FUNCTION__);
+			LogError("BlackBone: %s: Invalid protection flag offset", __FUNCTION__);
 			status = STATUS_INVALID_ADDRESS;
 		}
 	}
 	else
-		DPRINT("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+	{
+		LogError("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+	}
 
 	if (pProcess)
 		ObDereferenceObject(pProcess);
@@ -201,7 +203,7 @@ BOOLEAN BBHandleCallback(
 				result = TRUE;
 			}
 			else
-				DPRINT("BlackBone: %s: 0x%X:0x%X handle is invalid\n. HandleEntry = 0x%p",
+				LogError("BlackBone: %s: 0x%X:0x%X handle is invalid\n. HandleEntry = 0x%p",
 					__FUNCTION__, pAccess->pid, pAccess->handle, HandleTableEntry
 				);
 		}
@@ -223,7 +225,7 @@ NTSTATUS BBGrantAccess(IN PHANDLE_GRANT_ACCESS pAccess)
 	// Validate dynamic offset
 	if (dynData.ObjectTable == 0)
 	{
-		DPRINT("BlackBone: %s: Invalid ObjTable address", __FUNCTION__);
+		LogError("BlackBone: %s: Invalid ObjTable address", __FUNCTION__);
 		return STATUS_INVALID_ADDRESS;
 	}
 
@@ -239,7 +241,9 @@ NTSTATUS BBGrantAccess(IN PHANDLE_GRANT_ACCESS pAccess)
 			status = STATUS_NOT_FOUND;
 	}
 	else
-		DPRINT("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+	{
+		LogError("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+	}
 
 	if (pProcess)
 		ObDereferenceObject(pProcess);
@@ -260,14 +264,14 @@ NTSTATUS BBUnlinkHandleTable(IN PUNLINK_HTABLE pUnlink)
 	// Validate dynamic offset
 	if (dynData.ExRemoveTable == 0 || dynData.ObjectTable == 0)
 	{
-		DPRINT("BlackBone: %s: Invalid ExRemoveTable/ObjTable address", __FUNCTION__);
+		LogError("BlackBone: %s: Invalid ExRemoveTable/ObjTable address", __FUNCTION__);
 		return STATUS_INVALID_ADDRESS;
 	}
 
 	// Validate build
 	if (dynData.correctBuild == FALSE)
 	{
-		DPRINT("BlackBone: %s: Unsupported kernel build version", __FUNCTION__);
+		LogError("BlackBone: %s: Unsupported kernel build version", __FUNCTION__);
 		return STATUS_INVALID_KERNEL_INFO_VERSION;
 	}
 
@@ -278,13 +282,13 @@ NTSTATUS BBUnlinkHandleTable(IN PUNLINK_HTABLE pUnlink)
 
 		// Unlink process handle table
 		fnExRemoveHandleTable ExRemoveHandleTable = (fnExRemoveHandleTable)((ULONG_PTR)GetKernelBase(NULL) + dynData.ExRemoveTable);
-		//DPRINT( "BlackBone: %s: ExRemoveHandleTable address 0x%p. Object Table offset: 0x%X",
+		//LogInfo( "BlackBone: %s: ExRemoveHandleTable address 0x%p. Object Table offset: 0x%X",
 			   // __FUNCTION__, ExRemoveHandleTable, dynData.ObjTable );
 
 		ExRemoveHandleTable(pTable);
 	}
 	else
-		DPRINT("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+		LogError("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
 
 	if (pProcess)
 		ObDereferenceObject(pProcess);
@@ -329,7 +333,7 @@ NTSTATUS BBCopyMemory(IN PCOPY_MEMORY pCopy)
 		status = MmCopyVirtualMemory(pSourceProc, pSource, pTargetProc, pTarget, pCopy->size, KernelMode, &bytes);
 	}
 	else
-		DPRINT("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+		LogError("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
 
 	if (pProcess)
 		ObDereferenceObject(pProcess);
@@ -388,7 +392,7 @@ NTSTATUS BBAllocateFreeMemory(IN PALLOCATE_FREE_MEMORY pAllocFree, OUT PALLOCATE
 		KeUnstackDetachProcess(&apc);
 	}
 	else
-		DPRINT("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+		LogError("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
 
 	if (pProcess)
 		ObDereferenceObject(pProcess);
@@ -416,7 +420,7 @@ NTSTATUS BBAllocateFreePhysical(IN PEPROCESS pProcess, IN PALLOCATE_FREE_MEMORY 
 	// MDL doesn't support regions this large
 	if (pAllocFree->size > 0xFFFFFFFF)
 	{
-		DPRINT("BlackBone: %s: Region size if too big: 0x%p", __FUNCTION__, pAllocFree->size);
+		LogInfo("BlackBone: %s: Region size if too big: 0x%p", __FUNCTION__, pAllocFree->size);
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -587,7 +591,7 @@ NTSTATUS BBProtectMemory(IN PPROTECT_MEMORY pProtect)
 		KeUnstackDetachProcess(&apc);
 	}
 	else
-		DPRINT("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+		LogError("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
 
 	if (pProcess)
 		ObDereferenceObject(pProcess);
@@ -609,7 +613,7 @@ NTSTATUS BBHideVAD(IN PHIDE_VAD pData)
 	if (NT_SUCCESS(status))
 		status = BBUnlinkVAD(pProcess, pData->base);
 	else
-		DPRINT("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
+		LogError("BlackBone: %s: PsLookupProcessByProcessId failed with status 0x%X", __FUNCTION__, status);
 
 	if (pProcess)
 		ObDereferenceObject(pProcess);

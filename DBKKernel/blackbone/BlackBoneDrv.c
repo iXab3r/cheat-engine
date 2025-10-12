@@ -28,10 +28,10 @@ NTSTATUS BBInitDriver(IN PDRIVER_OBJECT DriverObject)
     {
         if (status == STATUS_NOT_SUPPORTED)
         {
-            DPRINT("BlackBone: %s: Unsupported OS version. Aborting", __FUNCTION__);
+            LogInfo("BlackBone: %s: Unsupported OS version. Aborting", __FUNCTION__);
         } else
         {
-            DPRINT("BlackBone: %s: Failed to initialize OS data. Aborting", __FUNCTION__);
+            LogError("BlackBone: %s: Failed to initialize OS data with status 0x%X. Aborting", __FUNCTION__, status);
         }
         return status;
     }
@@ -40,7 +40,7 @@ NTSTATUS BBInitDriver(IN PDRIVER_OBJECT DriverObject)
     status = BBInitLdrData((PKLDR_DATA_TABLE_ENTRY)DriverObject->DriverSection);
     if (!NT_SUCCESS(status))
     {
-        DPRINT("BlackBone: %s: Failed to initialize Ldr data", __FUNCTION__);
+        LogError("BlackBone: %s: Failed to initialize Ldr data with status 0x%X", __FUNCTION__, status);
         return status;
     }
     return status;
@@ -162,7 +162,7 @@ NTSTATUS BBGetBuildNO(OUT PULONG pBuildNo)
         ZwClose(hKey);
     }
     else
-        DPRINT("BlackBone: %s: ZwOpenKey failed with status 0x%X", __FUNCTION__, status);
+        LogInfo("BlackBone: %s: ZwOpenKey failed with status 0x%X", __FUNCTION__, status);
 
     return status;
 }
@@ -177,7 +177,7 @@ NTSTATUS BBInitDynamicData(IN OUT PDYNAMIC_DATA pData)
     NTSTATUS status = STATUS_SUCCESS;
     RTL_OSVERSIONINFOEXW verInfo = {0};
 
-    DPRINT("BlackBone: Initializing OS-specific data");
+    LogInfo("BlackBone: Initializing OS-specific data");
     if (pData == NULL)
     {
         return STATUS_INVALID_ADDRESS;
@@ -186,7 +186,7 @@ NTSTATUS BBInitDynamicData(IN OUT PDYNAMIC_DATA pData)
     NTSTATUS syscallsStatus = InitializeNtSyscalls();
     if (!NT_SUCCESS(syscallsStatus))
     {
-        DPRINT("BlackBone: InitializeNtSyscalls failed with status 0x%X", syscallsStatus);
+        LogError("BlackBone: InitializeNtSyscalls failed with status 0x%X", syscallsStatus);
         return syscallsStatus;
     }
 
@@ -221,7 +221,7 @@ NTSTATUS BBInitDynamicData(IN OUT PDYNAMIC_DATA pData)
             return STATUS_NOT_SUPPORTED;
 #endif
 
-        DPRINT(
+        LogInfo(
             "BlackBone: OS version %d.%d.%d.%d.%d - 0x%x",
             verInfo.dwMajorVersion,
             verInfo.dwMinorVersion,
@@ -583,26 +583,26 @@ NTSTATUS BBInitDynamicData(IN OUT PDYNAMIC_DATA pData)
         pData->NtCreateThdExIndex = GetNtSyscallIndex("ZwCreateThreadEx");
         if (pData->NtCreateThdExIndex == MAXULONG)
         {
-            DPRINT("BlackBone: Could not find ZwCreateThreadEx syscall");
+            LogError("BlackBone: Could not find ZwCreateThreadEx syscall");
             return STATUS_RESOURCE_TYPE_NOT_FOUND;
         }
         pData->NtTermThdIndex = GetNtSyscallIndex("ZwTerminateThread");
         if (pData->NtTermThdIndex == MAXULONG)
         {
-            DPRINT("BlackBone: Could not find ZwTerminateThread syscall");
+            LogError("BlackBone: Could not find ZwTerminateThread syscall");
             return STATUS_RESOURCE_TYPE_NOT_FOUND;
         }
         pData->NtProtectIndex = GetNtSyscallIndex("ZwProtectVirtualMemory");
         if (pData->NtProtectIndex == MAXULONG)
         {
-            DPRINT("BlackBone: Could not find ZwProtectVirtualMemory syscall");
+            LogError("BlackBone: Could not find ZwProtectVirtualMemory syscall");
             return STATUS_RESOURCE_TYPE_NOT_FOUND;
         }
 
         if (pData->ExRemoveTable != 0)
             pData->correctBuild = TRUE;
 
-        DPRINT(
+        LogInfo(
             "BlackBone: Dynamic search status: SSDT - %s, ExRemoveTable - %s",
             GetSSDTBase() != NULL ? "SUCCESS" : "FAIL",
             pData->ExRemoveTable != 0 ? "SUCCESS" : "FAIL"
@@ -610,7 +610,7 @@ NTSTATUS BBInitDynamicData(IN OUT PDYNAMIC_DATA pData)
 
         if (pData->ver >= WINVER_10_RS1)
         {
-            DPRINT(
+            LogInfo(
                 "BlackBone: %s: g_KdBlock->KernBase: %p, GetKernelBase() = 0x%p ",
                 __FUNCTION__, g_KdBlock.KernBase, GetKernelBase(NULL)
             );
@@ -620,10 +620,10 @@ NTSTATUS BBInitDynamicData(IN OUT PDYNAMIC_DATA pData)
             dynData.DYN_PDE_BASE = (ULONG_PTR)((g_KdBlock.PteBase & ~mask) | ((g_KdBlock.PteBase >> 9) & mask));
         }
 
-        DPRINT("BlackBone: PDE_BASE: %p, PTE_BASE: %p", pData->DYN_PDE_BASE, pData->DYN_PTE_BASE);
+        LogInfo("BlackBone: PDE_BASE: %p, PTE_BASE: %p", pData->DYN_PDE_BASE, pData->DYN_PTE_BASE);
         if (pData->DYN_PDE_BASE < MI_SYSTEM_RANGE_START || pData->DYN_PTE_BASE < MI_SYSTEM_RANGE_START)
         {
-            DPRINT("BlackBone: Invalid PDE/PTE base, aborting");
+            LogError("BlackBone: Invalid PDE/PTE base, aborting");
             return STATUS_UNSUCCESSFUL;
         }
 

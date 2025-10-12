@@ -209,7 +209,7 @@ NTSTATUS BBDispatch(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
                         Irp->IoStatus.Status = BBInjectDll((PINJECT_DLL)ioBuffer);
                     else
                     {
-                        DPRINT("BlackBone: %s: Invalid INJECT_DLL input buffer length (Expected: %zu, Received: %lu) Buffer: %p", 
+                        LogError("BlackBone: %s: Invalid INJECT_DLL input buffer length (Expected: %zu, Received: %lu) Buffer: %p", 
                                __FUNCTION__, sizeof(INJECT_DLL), inputBufferLength, ioBuffer);
                         Irp->IoStatus.Status = STATUS_INFO_LENGTH_MISMATCH;
                     }
@@ -277,7 +277,7 @@ NTSTATUS BBDispatch(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
                 break;
 
             default:
-                DPRINT("BlackBone: %s: Unknown IRP_MJ_DEVICE_CONTROL 0x%X", __FUNCTION__, ioControlCode);
+                LogWarn("BlackBone: %s: Unknown IRP_MJ_DEVICE_CONTROL 0x%X", __FUNCTION__, ioControlCode);
                 Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
                 break;
             }

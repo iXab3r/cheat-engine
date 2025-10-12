@@ -44,13 +44,13 @@ InitializeNtSyscallIndexesInternal(
     _In_  PUCHAR      NtdllBaseAddress,
     _Out_ PLIST_ENTRY SyscallList)
 {
-	DPRINT("BlackBone: %s: Parsing Syscalls, NTDLL base address %p",
+	LogInfo("BlackBone: %s: Parsing Syscalls, NTDLL base address %p",
 				 __FUNCTION__,
 				 NtdllBaseAddress);
     PIMAGE_DOS_HEADER DosHeader = (PIMAGE_DOS_HEADER)NtdllBaseAddress;
     if (DosHeader->e_magic != IMAGE_DOS_SIGNATURE)
     {
-    	DPRINT("BlackBone: %s: Base address %p does not seem to be a valid PE header (missing MZ)",
+    	LogInfo("BlackBone: %s: Base address %p does not seem to be a valid PE header (missing MZ)",
 				 __FUNCTION__,
 				 NtdllBaseAddress);
 	    return STATUS_INVALID_IMAGE_NOT_MZ;
@@ -59,7 +59,7 @@ InitializeNtSyscallIndexesInternal(
     PIMAGE_NT_HEADERS NtHeaders = (PIMAGE_NT_HEADERS)(NtdllBaseAddress + DosHeader->e_lfanew);
     if (NtHeaders->Signature != IMAGE_NT_SIGNATURE)
     {
-    	DPRINT("BlackBone: %s: Base address %p does not seem to be a valid PE header (missing NT signature)",
+    	LogInfo("BlackBone: %s: Base address %p does not seem to be a valid PE header (missing NT signature)",
 				 __FUNCTION__,
 				 NtdllBaseAddress);
 	    return STATUS_INVALID_IMAGE_FORMAT;
@@ -69,19 +69,19 @@ InitializeNtSyscallIndexesInternal(
     if (NtHeaders->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
         NtHeaders->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
     {
-    	DPRINT("BlackBone: %s: Base address %p does not seem to be a valid PE header (unsupported MAGIC)",
+    	LogInfo("BlackBone: %s: Base address %p does not seem to be a valid PE header (unsupported MAGIC)",
 				 __FUNCTION__,
 				 NtdllBaseAddress);
 	    return STATUS_INVALID_IMAGE_FORMAT;
     }
-	DPRINT("BlackBone: %s: PE MAGIC: 0x%X",
+	LogInfo("BlackBone: %s: PE MAGIC: 0x%X",
 				 __FUNCTION__,
 				 NtHeaders->OptionalHeader.Magic);
 
     PIMAGE_DATA_DIRECTORY ExportDataDirectory = &NtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
     if (ExportDataDirectory->VirtualAddress == 0 || ExportDataDirectory->Size == 0)
     {
-    	DPRINT("BlackBone: %s: Base address %p does not seem to be a valid PE header or export directory is malformed, VA %p, Size %d",
+    	LogInfo("BlackBone: %s: Base address %p does not seem to be a valid PE header or export directory is malformed, VA %p, Size %d",
 				 __FUNCTION__,
 				 NtdllBaseAddress,
 				 ExportDataDirectory->VirtualAddress,
@@ -94,7 +94,7 @@ InitializeNtSyscallIndexesInternal(
     PUSHORT ExportOrdinal = (PUSHORT)(NtdllBaseAddress + ExportDirectory->AddressOfNameOrdinals);
     PULONG ExportAddress = (PULONG)(NtdllBaseAddress + ExportDirectory->AddressOfFunctions);
 
-	DPRINT("BlackBone: %s: Analyzing IMAGE_EXPORT_DIRECTORY at %p (base %p, VA %p), NumberOfNames: %d, NumberOfFunctions: %d",
+	LogInfo("BlackBone: %s: Analyzing IMAGE_EXPORT_DIRECTORY at %p (base %p, VA %p), NumberOfNames: %d, NumberOfFunctions: %d",
 			 __FUNCTION__,
 			 ExportDataDirectory,
 			 NtdllBaseAddress,
@@ -133,7 +133,7 @@ InitializeNtSyscallIndexesInternal(
             }
 
             // Optional debug: show the parsed index
-            DPRINT("BlackBone: %s: Parsed export %s - 0x%X",
+            LogInfo("BlackBone: %s: Parsed export %s - 0x%X",
             	  __FUNCTION__,
                   CurrentExportName,
                   *(PULONG)(CurrentExportAddress + ByteCount + 1));
@@ -141,7 +141,7 @@ InitializeNtSyscallIndexesInternal(
 	            PSYSCALL_INFO NewSyscallInfo = ExAllocatePool2(POOL_FLAG_PAGED, syscallInfoSize, BB_POOL_TAG);
                 if (!NewSyscallInfo)
                 {
-                	DPRINT("BlackBone: %s: Could not allocate memory for syscall info %s - %db",
+                	LogInfo("BlackBone: %s: Could not allocate memory for syscall info %s - %db",
 						   __FUNCTION__,
 						   CurrentExportName,
 						   syscallInfoSize);
@@ -180,7 +180,7 @@ InitializeNtSyscallIndexes(
     _Out_ PLIST_ENTRY SyscallList
 )
 {
-	DPRINT("BlackBone: %s: Initializing syscalls indices", __FUNCTION__, SyscallList);
+	LogInfo("BlackBone: %s: Initializing syscalls indices", __FUNCTION__, SyscallList);
 	
     OBJECT_ATTRIBUTES ObjAttr;
     UNICODE_STRING    KnownNtdllUS = RTL_CONSTANT_STRING(L"\\KnownDlls\\ntdll.dll");
@@ -199,7 +199,7 @@ InitializeNtSyscallIndexes(
     Status = ZwOpenSection(&NtdllSectionHandle, SECTION_MAP_READ | SECTION_QUERY, &ObjAttr);
     if (!NT_SUCCESS(Status))
     {
-		DPRINT("BlackBone: %s: Failed to open NTDLL section: 0x%X", __FUNCTION__, Status);
+		LogInfo("BlackBone: %s: Failed to open NTDLL section: 0x%X", __FUNCTION__, Status);
 	    goto Cleanup;
     }
 
@@ -218,7 +218,7 @@ InitializeNtSyscallIndexes(
     );
     if (!NT_SUCCESS(Status))
     {
-		DPRINT("BlackBone: %s: Failed to map NTDLL view: 0x%X", __FUNCTION__, Status);
+		LogInfo("BlackBone: %s: Failed to map NTDLL view: 0x%X", __FUNCTION__, Status);
 	    goto Cleanup;
     }
 
@@ -395,7 +395,7 @@ PVOID GetKernelBase(OUT PULONG pSize)
 	status = ZwQuerySystemInformation(SystemModuleInformation, 0, bytes, &bytes);
 	if (bytes == 0)
 	{
-		DPRINT("BlackBone: %s: Invalid SystemModuleInformation size", __FUNCTION__);
+		LogInfo("BlackBone: %s: Invalid SystemModuleInformation size", __FUNCTION__);
 		return NULL;
 	}
 
@@ -464,7 +464,7 @@ PSYSTEM_SERVICE_DESCRIPTOR_TABLE GetSSDTBase()
 			if (NT_SUCCESS(status))
 			{
 				g_SSDT = (PSYSTEM_SERVICE_DESCRIPTOR_TABLE)((PUCHAR)pFound + *(PULONG)((PUCHAR)pFound + 3) + 7);
-				//DPRINT( "BlackBone: %s: KeSystemServiceDescriptorTable = 0x%p", __FUNCTION__, g_SSDT );
+				//LogInfo( "BlackBone: %s: KeSystemServiceDescriptorTable = 0x%p", __FUNCTION__, g_SSDT );
 				return g_SSDT;
 			}
 		}
@@ -684,19 +684,19 @@ NTSTATUS AllocateInDiscardedMemory(IN ULONG size, OUT PVOID* ppFoundBase)
 				// Already allocated
 				if (MI_IS_PHYSICAL_ADDRESS(VA))
 				{
-					//DPRINT( "BlackBone: %s: VA 0x%p is already backed by PFN: 0x%p", __FUNCTION__, VA, pPTE->u.Hard.PageFrameNumber );
+					//LogInfo( "BlackBone: %s: VA 0x%p is already backed by PFN: 0x%p", __FUNCTION__, VA, pPTE->u.Hard.PageFrameNumber );
 					continue;
 				}
 
 				PFN_NUMBER pfn = MiAllocateDriverPage(pPTE);
 				if (pfn == 0)
 				{
-					DPRINT("BlackBone: %s: Failed to allocate physical page for PTE 0x%p", __FUNCTION__, pPTE);
+					LogInfo("BlackBone: %s: Failed to allocate physical page for PTE 0x%p", __FUNCTION__, pPTE);
 					return STATUS_NO_MEMORY;
 				}
 				else
 				{
-					//DPRINT( "BlackBone: %s: VA 0x%p now backed by PFN: 0x%p; PTE: 0x%p", __FUNCTION__, VA, pfn, pPTE );
+					//LogInfo( "BlackBone: %s: VA 0x%p now backed by PFN: 0x%p; PTE: 0x%p", __FUNCTION__, VA, pfn, pPTE );
 					TempPTE.u.Hard.PageFrameNumber = pfn;
 					*pPTE = TempPTE;
 				}

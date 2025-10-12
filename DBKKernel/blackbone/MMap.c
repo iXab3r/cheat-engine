@@ -231,14 +231,14 @@ NTSTATUS BBMapUserImage(
 	ASSERT(pProcess != NULL);
 	if (pProcess == NULL)
 	{
-		DPRINT("BlackBone: %s: No process provided", __FUNCTION__);
+		LogInfo("BlackBone: %s: No process provided", __FUNCTION__);
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	context.pProcess = pProcess;
 	InitializeListHead(&context.modules);
 
-	DPRINT("BlackBone: %s: Mapping image '%wZ' with flags 0x%X", __FUNCTION__, path, flags);
+	LogInfo("BlackBone: %s: Mapping image '%wZ' with flags 0x%X", __FUNCTION__, path, flags);
 
 	// Create or find worker thread
 	context.noThreads = (flags & KNoThreads) != 0;
@@ -259,7 +259,7 @@ NTSTATUS BBMapUserImage(
 			status = ObReferenceObjectByHandle(context.hSync, EVENT_MODIFY_STATE, *ExEventObjectType, UserMode, &context.pSync, NULL);
 
 		if (!NT_SUCCESS(status))
-			DPRINT("BlackBone: %s: Failed to create sync event. Status 0x%X", __FUNCTION__, status);
+			LogInfo("BlackBone: %s: Failed to create sync event. Status 0x%X", __FUNCTION__, status);
 
 		UNICODE_STRING ustrNtdll;
 		RtlUnicodeStringInit(&ustrNtdll, L"ntdll.dll");
@@ -286,7 +286,7 @@ NTSTATUS BBMapUserImage(
 			pExecOpt->Flags.Permanent = 1;
 		}
 		else
-			DPRINT("BlackBone: %s: Invalid KEXECUTE_OPTIONS offset", __FUNCTION__);
+			LogInfo("BlackBone: %s: Invalid KEXECUTE_OPTIONS offset", __FUNCTION__);
 	}
 
 	// Rebase process
@@ -308,7 +308,7 @@ NTSTATUS BBMapUserImage(
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER) {
 			status = GetExceptionCode();
-			DPRINT("BlackBone: %s: Exception during initialization phase.Exception code 0x%X", __FUNCTION__, status);
+			LogInfo("BlackBone: %s: Exception during initialization phase.Exception code 0x%X", __FUNCTION__, status);
 		}
 	}
 
@@ -422,7 +422,7 @@ NTSTATUS BBFindOrMapModule(
 		return STATUS_SUCCESS;
 	}
 
-	DPRINT("BlackBone: %s: Loading image %wZ", __FUNCTION__, &pLocalImage->fullPath);
+	LogInfo("BlackBone: %s: Loading image %wZ", __FUNCTION__, &pLocalImage->fullPath);
 
 	// Load image info
 	if (buffer == NULL)
@@ -482,7 +482,7 @@ NTSTATUS BBFindOrMapModule(
 					BBPrepareACTX(&manifestPath, FALSE, manifestID, pContext);
 				}
 				else
-					DPRINT("BlackBone: %s: Failed to create temporary manifest. Status code: 0x%X", __FUNCTION__, status2);
+					LogInfo("BlackBone: %s: Failed to create temporary manifest. Status code: 0x%X", __FUNCTION__, status2);
 
 				ZwDeleteFile(&obAttr);
 				RtlFreeUnicodeString(&manifestPath);
@@ -567,7 +567,7 @@ NTSTATUS BBFindOrMapModule(
 	{
 		status = LdrRelocateImage(pLocalImage->baseAddress, STATUS_SUCCESS, STATUS_CONFLICTING_ADDRESSES, STATUS_INVALID_IMAGE_FORMAT);
 		if (!NT_SUCCESS(status))
-			DPRINT("BlackBone: %s: Failed to relocate image '%wZ'. Status: 0x%X", __FUNCTION__, path, status);
+			LogInfo("BlackBone: %s: Failed to relocate image '%wZ'. Status: 0x%X", __FUNCTION__, path, status);
 	}
 
 	InsertHeadList(&pContext->modules, &pLocalImage->link);
@@ -754,7 +754,7 @@ NTSTATUS BBResolveImageRefs(
 			}
 			else
 			{
-				DPRINT("BlackBone: %s: Loading missing import %wZ", __FUNCTION__, &resolved);
+				LogInfo("BlackBone: %s: Loading missing import %wZ", __FUNCTION__, &resolved);
 
 				if (IMAGE64(pHeader))
 				{
@@ -785,7 +785,7 @@ NTSTATUS BBResolveImageRefs(
 		// Failed to load
 		if (!pModule.address)
 		{
-			DPRINT("BlackBone: %s: Failed to load import '%wZ'. Status code: 0x%X", __FUNCTION__, ustrImpDll, status);
+			LogInfo("BlackBone: %s: Failed to load import '%wZ'. Status code: 0x%X", __FUNCTION__, ustrImpDll, status);
 			RtlFreeUnicodeString(&ustrImpDll);
 			RtlFreeUnicodeString(&resolved);
 
@@ -820,9 +820,9 @@ NTSTATUS BBResolveImageRefs(
 			if (!pFunc)
 			{
 				if (THUNK_VAL_T(pHeader, pThunk, u1.AddressOfData) < (IMAGE64(pHeader) ? IMAGE_ORDINAL_FLAG64 : IMAGE_ORDINAL_FLAG32) && pAddressTable->Name[0])
-					DPRINT("BlackBone: %s: Failed to resolve import '%wZ' : '%s'", __FUNCTION__, ustrImpDll, pAddressTable->Name);
+					LogInfo("BlackBone: %s: Failed to resolve import '%wZ' : '%s'", __FUNCTION__, ustrImpDll, pAddressTable->Name);
 				else
-					DPRINT("BlackBone: %s: Failed to resolve import '%wZ' : '%d'", __FUNCTION__, ustrImpDll, THUNK_VAL_T(pHeader, pThunk, u1.AddressOfData) & 0xFFFF);
+					LogInfo("BlackBone: %s: Failed to resolve import '%wZ' : '%d'", __FUNCTION__, ustrImpDll, THUNK_VAL_T(pHeader, pThunk, u1.AddressOfData) & 0xFFFF);
 
 				status = STATUS_NOT_FOUND;
 				break;
@@ -1006,7 +1006,7 @@ NTSTATUS BBResolveSxS(
 
 	if (pQueryName == NULL)
 	{
-		DPRINT("BlackBone: %s: Failed to get RtlDosApplyFileIsolationRedirection_Ustr", __FUNCTION__);
+		LogInfo("BlackBone: %s: Failed to get RtlDosApplyFileIsolationRedirection_Ustr", __FUNCTION__);
 		return STATUS_NOT_FOUND;
 	}
 
@@ -1063,7 +1063,7 @@ NTSTATUS BBResolveSxS(
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
-		DPRINT("BlackBone: %s: Exception. Code: 0x%X", __FUNCTION__, GetExceptionCode());
+		LogInfo("BlackBone: %s: Exception. Code: 0x%X", __FUNCTION__, GetExceptionCode());
 		return STATUS_UNHANDLED_EXCEPTION;
 	}
 }
@@ -1097,7 +1097,7 @@ NTSTATUS BBResolveImagePath(
 	ASSERT(pProcess != NULL && path != NULL && resolved != NULL);
 	if (pProcess == NULL || path == NULL || resolved == NULL)
 	{
-		DPRINT("BlackBone: %s: Missing parameter", __FUNCTION__);
+		LogInfo("BlackBone: %s: Missing parameter", __FUNCTION__);
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -1119,7 +1119,7 @@ NTSTATUS BBResolveImagePath(
 		RtlFreeUnicodeString(resolved);
 		RtlFreeUnicodeString(&pathLow);
 
-		//DPRINT( "BlackBone: %s: Resolved image '%wZ' to '%wZ' by ApiSetSchema", __FUNCTION__, path, fullResolved );
+		//LogInfo( "BlackBone: %s: Resolved image '%wZ' to '%wZ' by ApiSetSchema", __FUNCTION__, path, fullResolved );
 
 		*resolved = fullResolved;
 		return STATUS_SUCCESS;
@@ -1224,7 +1224,7 @@ NTSTATUS BBCallInitializers(IN PMMAP_CONTEXT pContext, IN BOOLEAN noTLS)
 		if (pEntry->initialized)
 			continue;
 
-		DPRINT("BlackBone: %s: Calling '%wZ' initializer", __FUNCTION__, pEntry->name);
+		LogInfo("BlackBone: %s: Calling '%wZ' initializer", __FUNCTION__, pEntry->name);
 
 		PIMAGE_NT_HEADERS pHeaders = RtlImageNtHeader(pEntry->baseAddress);
 
@@ -1241,7 +1241,7 @@ NTSTATUS BBCallInitializers(IN PMMAP_CONTEXT pContext, IN BOOLEAN noTLS)
 		// Check if process is terminating
 		if (status != STATUS_SUCCESS && BBCheckProcessTermination(PsGetCurrentProcess()))
 		{
-			DPRINT("BlackBone: %s: Process is terminating, map aborted", __FUNCTION__);
+			LogInfo("BlackBone: %s: Process is terminating, map aborted", __FUNCTION__);
 			return STATUS_PROCESS_IS_TERMINATING;
 		}
 
@@ -1294,7 +1294,7 @@ NTSTATUS BBCallInitializers(IN PMMAP_CONTEXT pContext, IN BOOLEAN noTLS)
 					ZwProtectVirtualMemory(ZwCurrentProcess(), &pBase, &hdrSize, PAGE_READONLY, NULL);
 				}
 				else
-					DPRINT("BlackBone: %s: Failed to wipe image header", __FUNCTION__);
+					LogInfo("BlackBone: %s: Failed to wipe image header", __FUNCTION__);
 			}
 		}
 
@@ -1346,7 +1346,7 @@ void BBCallTlsInitializers(IN PMMAP_CONTEXT pContext, IN PVOID imageBase)
 				*(PULONGLONG)pTLSMem = TLS_VAL_T(pHeaders, pTLS, StartAddressOfRawData);
 			}
 
-			DPRINT("BlackBone: %s: Static TLS buffer: 0x%p", __FUNCTION__, pTLSMem);
+			LogInfo("BlackBone: %s: Static TLS buffer: 0x%p", __FUNCTION__, pTLSMem);
 			pContext->tlsInitialized = TRUE;
 		}
 	}
@@ -1384,7 +1384,7 @@ NTSTATUS BBPrepareACTX(IN PUNICODE_STRING pPath, IN BOOLEAN asImage, IN LONG man
 
 	if (!pCreateActCtxW)
 	{
-		DPRINT("BlackBone: %s: Failed to get CreateActCtxW address", __FUNCTION__);
+		LogInfo("BlackBone: %s: Failed to get CreateActCtxW address", __FUNCTION__);
 		status = STATUS_NOT_FOUND;
 	}
 
@@ -1395,7 +1395,7 @@ NTSTATUS BBPrepareACTX(IN PUNICODE_STRING pPath, IN BOOLEAN asImage, IN LONG man
 
 	if (!pActivateCtx)
 	{
-		DPRINT("BlackBone: %s: Failed to get RtlActivateActivationContext address", __FUNCTION__);
+		LogInfo("BlackBone: %s: Failed to get RtlActivateActivationContext address", __FUNCTION__);
 		status = STATUS_NOT_FOUND;
 	}
 
@@ -1442,7 +1442,7 @@ NTSTATUS BBPrepareACTX(IN PUNICODE_STRING pPath, IN BOOLEAN asImage, IN LONG man
 		}
 		else
 		{
-			DPRINT("BlackBone: %s: CreateActCtxW failed", __FUNCTION__);
+			LogInfo("BlackBone: %s: CreateActCtxW failed", __FUNCTION__);
 			status = STATUS_SXS_CANT_GEN_ACTCTX;
 		}
 	}
@@ -1453,7 +1453,7 @@ NTSTATUS BBPrepareACTX(IN PUNICODE_STRING pPath, IN BOOLEAN asImage, IN LONG man
 		BBCallRoutine(FALSE, pContext, pActivateCtx, 3, NULL, pContext->userMem->hCTX, &pContext->userMem->hCookie);
 		if (!NT_SUCCESS(pContext->userMem->status))
 		{
-			DPRINT("BlackBone: %s: RtlActivateActivationContext failed with code 0x%X", __FUNCTION__, pContext->userMem->status);
+			LogInfo("BlackBone: %s: RtlActivateActivationContext failed with code 0x%X", __FUNCTION__, pContext->userMem->status);
 			status = pContext->userMem->status;
 		}
 	}
@@ -1490,7 +1490,7 @@ NTSTATUS BBCreateExceptionTable64(IN PMMAP_CONTEXT pContext, IN PVOID imageBase)
 
 		if (!pAddTable)
 		{
-			DPRINT("BlackBone: %s: Failed to get RtlAddFunctionTable address", __FUNCTION__);
+			LogInfo("BlackBone: %s: Failed to get RtlAddFunctionTable address", __FUNCTION__);
 			return STATUS_NOT_FOUND;
 		}
 
@@ -1498,10 +1498,10 @@ NTSTATUS BBCreateExceptionTable64(IN PMMAP_CONTEXT pContext, IN PVOID imageBase)
 		if (NT_SUCCESS(status))
 		{
 			if (pContext->userMem->retVal32 == FALSE)
-				DPRINT("BlackBone: %s: RtlAddFunctionTable failed", __FUNCTION__);
+				LogInfo("BlackBone: %s: RtlAddFunctionTable failed", __FUNCTION__);
 		}
 		else
-			DPRINT("BlackBone: %s: Failed co call RtlAddFunctionTable. Status code: 0x%X", __FUNCTION__, status);
+			LogInfo("BlackBone: %s: Failed co call RtlAddFunctionTable. Status code: 0x%X", __FUNCTION__, status);
 
 		return status;
 	}
@@ -1559,7 +1559,7 @@ NTSTATUS BBLoadLocalImage(IN PUNICODE_STRING path, OUT PVOID* pBase)
 	ASSERT(path != NULL && pBase != NULL);
 	if (path == NULL || pBase == NULL)
 	{
-		DPRINT("BlackBone: %s: No image path or output base", __FUNCTION__);
+		LogInfo("BlackBone: %s: No image path or output base", __FUNCTION__);
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -1574,7 +1574,7 @@ NTSTATUS BBLoadLocalImage(IN PUNICODE_STRING path, OUT PVOID* pBase)
 
 	if (!NT_SUCCESS(status))
 	{
-		DPRINT("BlackBone: %s: Failed to open '%wZ'. Status: 0x%X", __FUNCTION__, path, status);
+		LogInfo("BlackBone: %s: Failed to open '%wZ'. Status: 0x%X", __FUNCTION__, path, status);
 		return status;
 	}
 
@@ -1583,7 +1583,7 @@ NTSTATUS BBLoadLocalImage(IN PUNICODE_STRING path, OUT PVOID* pBase)
 	if (NT_SUCCESS(status))
 		*pBase = ExAllocatePool2(POOL_FLAG_PAGED, fileInfo.EndOfFile.QuadPart, BB_POOL_TAG);
 	else
-		DPRINT("BlackBone: %s: Failed to get '%wZ' size. Status: 0x%X", __FUNCTION__, path, status);
+		LogInfo("BlackBone: %s: Failed to get '%wZ' size. Status: 0x%X", __FUNCTION__, path, status);
 
 	// Get file contents
 	status = ZwReadFile(hFile, NULL, NULL, NULL, &statusBlock, *pBase, fileInfo.EndOfFile.LowPart, NULL, NULL);
@@ -1592,12 +1592,12 @@ NTSTATUS BBLoadLocalImage(IN PUNICODE_STRING path, OUT PVOID* pBase)
 		PIMAGE_NT_HEADERS pNTHeader = RtlImageNtHeader(*pBase);
 		if (!pNTHeader)
 		{
-			DPRINT("BlackBone: %s: Failed to obtaint NT Header for '%wZ'", __FUNCTION__, path);
+			LogInfo("BlackBone: %s: Failed to obtaint NT Header for '%wZ'", __FUNCTION__, path);
 			status = STATUS_INVALID_IMAGE_FORMAT;
 		}
 	}
 	else
-		DPRINT("BlackBone: %s: Failed to read '%wZ'. Status: 0x%X", __FUNCTION__, path, status);
+		LogInfo("BlackBone: %s: Failed to read '%wZ'. Status: 0x%X", __FUNCTION__, path, status);
 
 	ZwClose(hFile);
 
